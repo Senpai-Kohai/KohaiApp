@@ -119,8 +119,6 @@ namespace client_app
                 TabPage selectedTab = tabControl.TabPages[tabControl.SelectedIndex];
                 string tabName = selectedTab.Name;
 
-                requestTextbox.Text = tabName;
-
                 if (string.Equals("chatTab", tabName, StringComparison.InvariantCultureIgnoreCase))
                 {
                     bool messageAllowed = !string.IsNullOrWhiteSpace(Program.AppConfig?.ChatGPTApiKey) && !string.IsNullOrWhiteSpace(Program.AppConfig?.ChatGPTApiUrl);
@@ -162,19 +160,27 @@ namespace client_app
                 {
                     string jsonResponse = await response.Content.ReadAsStringAsync();
                     Debug.WriteLine($"Response JSON: {jsonResponse}");
-                    JObject responseObject = JObject.Parse(jsonResponse);
+                    JObject responseObj = JObject.Parse(jsonResponse);
 
-                    JArray? choices = responseObject["choices"] as JArray;
-                    if (choices != null && choices.Count > 0)
+                    JArray? responseChoices = responseObj["choices"] as JArray;
+                    string? responseText = null;
+
+                    if (responseChoices != null && responseChoices.Count > 0)
                     {
-                        string? text = choices[0]?["text"]?.ToString();
-                        return text;
+                        JObject? choiceMessage = (JObject?)responseChoices[0]?["message"];
+                        if (choiceMessage != null)
+                        {
+                            responseText = (string?)choiceMessage["content"];
+                        }
                     }
-                    else
+
+                    if (string.IsNullOrWhiteSpace(responseText))
                     {
-                        Debug.WriteLine("No choices found in response.");
-                        return "No choices found in response.";
+                        Debug.WriteLine("A message could not be parsed from the response.");
+                        return "A message could not be parsed from the response.";
                     }
+
+                    return responseText;
                 }
                 else
                 {
