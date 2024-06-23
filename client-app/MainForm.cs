@@ -1,5 +1,6 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.Diagnostics;
 using System.Net.Http;
 using System.Text;
 
@@ -138,11 +139,18 @@ namespace client_app
         {
             var requestBody = new JObject
             {
-                { "prompt", prompt },
-                { "max_tokens", 100 }
+                { "model", "gpt-3.5-turbo-16k" },
+                { "messages", new JArray() {
+                    new JObject {
+                        { "role", "user" },
+                        { "content", prompt }
+                    }
+                } },
+                { "temperature", 0.7 }
             };
 
             string jsonBody = requestBody.ToString();
+            Debug.WriteLine($"Request body: {jsonBody}");
 
             using (var requestMessage = new HttpRequestMessage(HttpMethod.Post, Program.AppConfig?.ChatGPTApiUrl))
             {
@@ -153,6 +161,7 @@ namespace client_app
                 if (response.IsSuccessStatusCode)
                 {
                     string jsonResponse = await response.Content.ReadAsStringAsync();
+                    Debug.WriteLine($"Response JSON: {jsonResponse}");
                     JObject responseObject = JObject.Parse(jsonResponse);
 
                     JArray? choices = responseObject["choices"] as JArray;
@@ -163,11 +172,13 @@ namespace client_app
                     }
                     else
                     {
+                        Debug.WriteLine("No choices found in response.");
                         return "No choices found in response.";
                     }
                 }
                 else
                 {
+                    Debug.WriteLine($"Error: {response.ReasonPhrase}");
                     return $"Error: {response.ReasonPhrase}";
                 }
             }

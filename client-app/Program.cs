@@ -15,12 +15,10 @@ namespace client_app
         [STAThread]
         static void Main(string[] args)
         {
-            // To customize application configuration such as set high DPI settings or default font,
-            // see https://aka.ms/applicationconfiguration.
+            AppConfig = AppConfig.LoadFromEnvironmentAndArgs(args);
+
             ApplicationConfiguration.Initialize();
             Application.Run(new MainForm());
-
-            AppConfig = AppConfig.LoadFromEnvironmentAndArgs(args);
         }
     }
 }

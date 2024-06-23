@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -30,6 +31,16 @@ namespace client_app
                 {
                     config.ChatGPTApiUrl = arg.Substring("--apiurl=".Length);
                 }
+            }
+
+            if (string.IsNullOrWhiteSpace(config.ChatGPTApiKey))
+            {
+                Debug.WriteLine("CHATGPT API KEY NOT CONFIGURED!");
+            }
+
+            if (string.IsNullOrWhiteSpace(config.ChatGPTApiUrl))
+            {
+                Debug.WriteLine("CHATGPT API URL NOT CONFIGURED!");
             }
 
             return config;
