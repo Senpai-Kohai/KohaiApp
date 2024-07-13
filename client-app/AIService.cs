@@ -28,18 +28,25 @@ namespace client_app
                 return null;
             }
 
-            var requestBody = new JObject
-            {
-                { "prompt", prompt },
-                { "max_tokens", 100 }
-            };
+            var requestObject = new JObject(
+                new JProperty("model", "gpt-4o"),
+                new JProperty("messages", new JArray(
+                    new JObject(
+                        new JProperty("role", "user"),
+                        new JProperty("content", prompt)
+                    )
+                ))
+            );
 
-            string jsonBody = requestBody.ToString();
+            // To convert the JObject to a string if needed
+            string requestString = requestObject.ToString();
+
+            Debug.WriteLine($"AI prompt / API Request payload: {requestString}");
 
             using (var requestMessage = new HttpRequestMessage(HttpMethod.Post, _config.ChatGPTApiUrl))
             {
                 requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _config.ChatGPTApiKey);
-                requestMessage.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+                requestMessage.Content = new StringContent(requestString, Encoding.UTF8, "application/json");
 
                 HttpResponseMessage response = await _httpClient.SendAsync(requestMessage);
                 if (response.IsSuccessStatusCode)
@@ -50,7 +57,7 @@ namespace client_app
                     JArray? choices = responseObject["choices"] as JArray;
                     if (choices != null && choices.Count > 0)
                     {
-                        string? text = choices[0]?["text"]?.ToString();
+                        string? text = choices[0]?["message"]?["content"]?.ToString();
                         return text;
                     }
                     else
