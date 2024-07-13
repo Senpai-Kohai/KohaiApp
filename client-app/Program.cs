@@ -1,13 +1,18 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using System;
+using System.CodeDom;
 using System.Configuration;
+using System.Diagnostics;
 using System.Net;
+using System.Reflection;
 
 namespace client_app
 {
     internal static class Program
     {
-        public static AppConfig? AppConfig { get; set; }
-        public static HttpClient HttpClient { get; private set; } = new HttpClient();
-        public static string FilePath { get; private set; } = "tasks.json";
+        private static IConfiguration? Configuration { get; set; }
+        private static ServiceProvider? ServiceProvider { get; set; }
 
         /// <summary>
         ///  The main entry point for the application.
@@ -15,10 +20,67 @@ namespace client_app
         [STAThread]
         static void Main(string[] args)
         {
-            AppConfig = AppConfig.LoadFromEnvironmentAndArgs(args);
+            var builder = new ConfigurationBuilder()
+                .AddEnvironmentVariables()
+                .AddCommandLine(args);
 
-            ApplicationConfiguration.Initialize();
-            Application.Run(new MainForm());
+            Configuration = builder.Build();
+
+            // Set up dependency injection
+            var services = new ServiceCollection();
+            ConfigureServices(services);
+
+            ServiceProvider = services.BuildServiceProvider();
+
+            // Enable visual styles for the application
+            Application.EnableVisualStyles();
+
+            // Ensure text rendering uses GDI+
+            Application.SetCompatibleTextRenderingDefault(false);
+
+            // Set high DPI mode to improve appearance on high-resolution displays
+            Application.SetHighDpiMode(HighDpiMode.SystemAware);
+
+            // Start the main form of the application
+            Application.Run(ServiceProvider.GetRequiredService<MainForm>());
+        }
+
+        private static void ConfigureServices(ServiceCollection services)
+        {
+            var config = new AppConfiguration();
+            Configuration?.Bind(config);
+
+            if (!ValidateConfiguration(config))
+            {
+                Debug.WriteLine("Configuration validation failed. Exiting application.");
+                Environment.Exit(1);
+            }
+
+            services.AddSingleton(config);
+            services.AddSingleton(new HttpClient());
+            services.AddSingleton<ProjectService>();
+            services.AddSingleton<AIService>();
+            services.AddSingleton<MainForm>();
+        }
+
+        public static bool ValidateConfiguration(object config)
+        {
+            var configType = config.GetType();
+            var properties = configType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+
+            foreach (var property in properties)
+            {
+                if (property.GetCustomAttribute<RequiredConfigurationAttribute>() != null)
+                {
+                    var value = property.GetValue(config);
+                    if (value == null)
+                    {
+                        Debug.WriteLine($"Configuration property '{property.Name}' is required but is not set.");
+                        return false;
+                    }
+                }
+            }
+            return true;
         }
     }
 }
