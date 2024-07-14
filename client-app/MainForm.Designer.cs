@@ -11,6 +11,12 @@ namespace client_app
     {
         private System.ComponentModel.IContainer components = null;
         private TabControl tabControl;
+        private MenuStrip menuStrip;
+        private ToolStripMenuItem projectMenu;
+        private ToolStripMenuItem createNewMenuItem;
+        private ToolStripMenuItem editMenuItem;
+        private ToolStripMenuItem loadMenuItem;
+        private ToolStripMenuItem recentMenuItem;
 
         protected override void Dispose(bool disposing)
         {
@@ -23,6 +29,45 @@ namespace client_app
 
         private void InitializeComponents()
         {
+            // file menu initialization
+            menuStrip = new MenuStrip();
+            projectMenu = new ToolStripMenuItem();
+            createNewMenuItem = new ToolStripMenuItem();
+            editMenuItem = new ToolStripMenuItem();
+            loadMenuItem = new ToolStripMenuItem();
+            recentMenuItem = new ToolStripMenuItem();
+
+            menuStrip.Items.AddRange(new ToolStripItem[] {
+                projectMenu,
+            });
+
+            projectMenu.DropDownItems.AddRange(new ToolStripItem[] {
+                createNewMenuItem,
+                editMenuItem,
+                loadMenuItem,
+                recentMenuItem,
+            });
+
+            projectMenu.Text = "Project";
+            createNewMenuItem.Text = "Create New";
+            editMenuItem.Text = "Edit";
+            loadMenuItem.Text = "Load";
+            recentMenuItem.Text = "Recent";
+            editMenuItem.Enabled = false;
+
+            createNewMenuItem.Click += new EventHandler(CreateNewMenuItem_Click);
+            editMenuItem.Click += new EventHandler(EditMenuItem_Click);
+            loadMenuItem.Click += new EventHandler(LoadMenuItem_Click);
+
+            menuStrip.Location = new System.Drawing.Point(0, 0);
+            menuStrip.Name = "menuStrip";
+            menuStrip.Size = new System.Drawing.Size(800, 24);
+            menuStrip.TabIndex = 0;
+            menuStrip.Text = "menuStrip";
+
+            Controls.Add(menuStrip);
+            MainMenuStrip = menuStrip;
+
             // Main form initialization code
             tabControl = new TabControl();
             projectTab = new TabPage();
@@ -43,7 +88,7 @@ namespace client_app
             tabControl.Controls.Add(aiTab);
             tabControl.Controls.Add(taskListTab);
             tabControl.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            tabControl.Location = new Point(0, 0);
+            tabControl.Location = new Point(0, 30);
             tabControl.Name = "tabControl";
             tabControl.SelectedIndex = 0;
             tabControl.Size = new Size(366, 422);

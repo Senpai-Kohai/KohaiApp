@@ -12,15 +12,22 @@ namespace client_app
     {
         private void OnProjectTabSelected()
         {
-            currentProject = _projectService.GetCurrentProject().Result;
-
-            if (currentProject == null)
-                currentProject = new ProjectData(Guid.NewGuid());
+            projectAuthorTextBox.Text = currentProject.Author;
+            projectDescriptionTextBox.Text = currentProject.Description;
+            projectNameTextBox.Text = currentProject.DisplayName;
         }
 
         private void SaveProjectButton_Click(object sender, EventArgs e)
         {
-            if (!_projectService.SaveProjectAsync(currentProject).Result)
+            if (currentProject == null)
+                return;
+
+            currentProject.Author = projectAuthorTextBox.Text;
+            currentProject.Description = projectDescriptionTextBox.Text;
+            currentProject.DisplayName = projectNameTextBox.Text;
+
+            _projectService.SetCurrentProject(currentProject).Wait();
+            if (!_projectService.SaveProjectAsync().Result)
             {
                 Debug.WriteLine($"Failed to save project [{projectNameTextBox.Text}]");
             }

@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -36,25 +37,36 @@ namespace client_app
             return _currentProject;
         }
 
-        public async Task<bool> SaveProjectAsync(ProjectData project)
+        public async Task SetCurrentProject(ProjectData? currentProject)
+        {
+            await Task.CompletedTask;
+            _currentProject = currentProject;
+
+            if (_currentProject != null)
+                AddToRecentProjects(_currentProject);
+        }
+
+        public async Task<bool> SaveProjectAsync()
         {
             try
             {
-                string projectPath = GetProjectPath(project.ID);
+                if (_currentProject == null)
+                    return false;
+
+                string projectPath = GetProjectPath(_currentProject.ID);
                 if (!Directory.Exists(projectPath))
                     Directory.CreateDirectory(projectPath);
 
                 string projectFilePath = Path.Combine(projectPath, "project.json");
-                string json = JsonSerializer.Serialize(project);
-                await File.WriteAllTextAsync(projectFilePath, json);
-
-                AddToRecentProjects(project);
+                string json = JsonConvert.SerializeObject(_currentProject, Formatting.Indented);
+                await File.WriteAllTextAsync(projectFilePath, json).ConfigureAwait(false);
+                AddToRecentProjects(_currentProject);
 
                 return true;
             }
             catch (Exception exc)
             {
-                Debug.WriteLine($"An exception occurred when attempting to save project [{project.DisplayName}] with ID [{project.ID}]. Message: {exc}");
+                Debug.WriteLine($"An exception occurred when attempting to save project [{_currentProject?.DisplayName}] with ID [{_currentProject?.ID}]. Message: {exc}");
                 return false;
             }
         }
@@ -71,8 +83,8 @@ namespace client_app
                 if (!File.Exists(projectFilePath))
                     return null;
 
-                string json = await File.ReadAllTextAsync(projectFilePath);
-                ProjectData? project = JsonSerializer.Deserialize<ProjectData>(json);
+                string json = await File.ReadAllTextAsync(projectFilePath).ConfigureAwait(false);
+                ProjectData? project = JsonConvert.DeserializeObject<ProjectData>(json);
 
                 if (project == null)
                     return null;
@@ -99,8 +111,8 @@ namespace client_app
                     string projectFilePath = Path.Combine(directory, "project.json");
                     if (File.Exists(projectFilePath))
                     {
-                        string json = await File.ReadAllTextAsync(projectFilePath);
-                        ProjectData? project = JsonSerializer.Deserialize<ProjectData>(json);
+                        string json = await File.ReadAllTextAsync(projectFilePath).ConfigureAwait(false);
+                        ProjectData? project = JsonConvert.DeserializeObject<ProjectData>(json);
                         if (project?.DisplayName == null)
                             return null;
 
@@ -132,7 +144,7 @@ namespace client_app
 
                 string projectPath = GetProjectPath(_currentProject.ID);
                 string filePath = Path.Combine(projectPath, $"{key}.json");
-                await File.WriteAllTextAsync(filePath, data);
+                await File.WriteAllTextAsync(filePath, data).ConfigureAwait(false);
 
                 return true;
             }
@@ -219,11 +231,19 @@ namespace client_app
             {
                 if (File.Exists(_config.RecentProjectsFilename))
                 {
-                    string json = File.ReadAllText(_config.RecentProjectsFilename);
-                    var recentProjects = JsonSerializer.Deserialize<List<ProjectData>>(json);
-                    if (recentProjects != null)
+                    string recentIDsString = File.ReadAllTextAsync(_config.RecentProjectsFilename).Result;
+                    var recentIDs = JsonConvert.DeserializeObject<List<string>>(recentIDsString);
+                    if (recentIDs != null)
                     {
-                        _recentProjects.AddRange(recentProjects);
+                        foreach (var recentID in recentIDs)
+                        {
+                            if (Guid.TryParse(recentID, out Guid projectID))
+                            {
+                                ProjectData? loadedProject = LoadProjectAsync(projectID).Result;
+                                if (loadedProject != null)
+                                    _recentProjects.Add(loadedProject);
+                            }
+                        }
                     }
                 }
             }
@@ -237,7 +257,9 @@ namespace client_app
         {
             try
             {
-                string json = JsonSerializer.Serialize(_recentProjects);
+                var recentProjectIDs = _recentProjects.Select(p => p.ID.ToString()).ToList();
+
+                string json = JsonConvert.SerializeObject(recentProjectIDs, Formatting.Indented);
                 File.WriteAllText(_config.RecentProjectsFilename, json);
             }
             catch (Exception exc)
