@@ -42,7 +42,7 @@
             okButton.TabIndex = 1;
             okButton.Text = "OK";
             okButton.UseVisualStyleBackColor = true;
-            okButton.Click += okButton_Click;
+            okButton.Click += taskWindow_okButton_Click;
             // 
             // cancelButton
             // 
@@ -53,7 +53,7 @@
             cancelButton.TabIndex = 2;
             cancelButton.Text = "Cancel";
             cancelButton.UseVisualStyleBackColor = true;
-            cancelButton.Click += cancelButton_Click;
+            cancelButton.Click += taskWindow_cancelButton_Click;
             // 
             // completedCheckbox
             // 
@@ -65,7 +65,7 @@
             completedCheckbox.TabIndex = 3;
             completedCheckbox.Text = "Completed";
             completedCheckbox.UseVisualStyleBackColor = true;
-            completedCheckbox.CheckedChanged += completedCheckbox_Updated;
+            completedCheckbox.CheckedChanged += taskWindow_completedCheckbox_Updated;
             // 
             // EditTaskForm
             // 

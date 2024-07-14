@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace client_app
 {
@@ -13,6 +14,8 @@ namespace client_app
 
         private void PopulateRecentProjectsMenu()
         {
+            Debug.WriteLine($"Method: {nameof(PopulateRecentProjectsMenu)}");
+
             recentProjects_MenuItem.DropDownItems.Clear();
 
             foreach (var project in _projectService.GetRecentProjects())
@@ -23,46 +26,31 @@ namespace client_app
                     Tag = project.ID
                 };
 
-                projectMenuItem.Click += (sender, e) =>
+                projectMenuItem.Click += async (sender, e) => 
                 {
                     Guid? projectID = (Guid?)((ToolStripMenuItem?)sender)?.Tag;
                     if (projectID == null)
                         return;
 
-                    ProjectData? loadedProject = _projectService.LoadProjectAsync(projectID.Value).Result;
-                    if (loadedProject == null)
-                        return;
-
-                    projectAuthorTextBox.Text = loadedProject?.Author;
-                    projectNameTextBox.Text = loadedProject?.DisplayName;
-                    projectDescriptionTextBox.Text = loadedProject?.Description;
-
-                    tabControl.SelectTab(projectTab);
+                    _ = await _projectService.LoadProjectAsync(projectID.Value);
                 };
 
                 recentProjects_MenuItem.DropDownItems.Add(projectMenuItem);
             }
         }
 
-        private void LoadCurrentProject()
+        private async void OnProjectTabSelected()
         {
-            ProjectData? currentProject = _projectService.GetCurrentProject().Result;
-            if (currentProject == null)
-                return;
+            await Task.CompletedTask;
 
-            projectAuthorTextBox.Text = currentProject?.Author;
-            projectNameTextBox.Text = currentProject?.DisplayName;
-            projectDescriptionTextBox.Text = currentProject?.Description;
+            ReloadProjectData();
         }
 
-        private void OnProjectTabSelected()
+        private async void SaveProject_Button_Click(object sender, EventArgs e)
         {
-            LoadCurrentProject();
-        }
+            Debug.WriteLine($"Method: {nameof(SaveProject_Button_Click)}");
 
-        private void SaveProject_Button_Click(object sender, EventArgs e)
-        {
-            ProjectData? currentProject = _projectService.GetCurrentProject().Result;
+            ProjectData? currentProject = _projectService.GetCurrentProject();
             if (currentProject == null)
                 return;
 
@@ -70,29 +58,37 @@ namespace client_app
             currentProject.Description = projectDescriptionTextBox.Text;
             currentProject.DisplayName = projectNameTextBox.Text;
 
-            _projectService.UpdateProjectAsync(currentProject).Wait();
-            if (!_projectService.SaveProjectAsync().Result)
+            if (!await _projectService.UpdateProjectAsync(currentProject))
             {
-                Debug.WriteLine($"Failed to save project [{projectNameTextBox.Text}]");
+                Debug.WriteLine($"Failed to update project for [{currentProject.DisplayName ?? currentProject.ID.ToString()}]");
+                return;
+            }
+
+            ReloadProjectData();
+        }
+
+        private async void CreateProject_MenuItem_Click(object sender, EventArgs e)
+        {
+            Debug.WriteLine($"Method: {nameof(CreateProject_MenuItem_Click)}");
+
+            if (await _projectService.CreateProjectAsync() == null)
+            {
+                Debug.WriteLine($"Failed to create new project.");
             }
         }
 
-        private void CreateProject_MenuItem_Click(object sender, EventArgs e)
+        private async void EditProject_MenuItem_Click(object sender, EventArgs e)
         {
-            ProjectData? newProject = _projectService.CreateProjectAsync().Result;
-            if (newProject == null)
-                return;
+            Debug.WriteLine($"Method: {nameof(EditProject_MenuItem_Click)}");
+            await Task.CompletedTask;
 
             tabControl.SelectedTab = projectTab;
         }
 
-        private void EditProject_MenuItem_Click(object sender, EventArgs e)
+        private async void LoadProject_MenuItem_Click(object sender, EventArgs e)
         {
-            tabControl.SelectedTab = projectTab;
-        }
+            Debug.WriteLine($"Method: {nameof(LoadProject_MenuItem_Click)}");
 
-        private void LoadProject_MenuItem_Click(object sender, EventArgs e)
-        {
             using (var openFileDialog = new OpenFileDialog())
             {
                 openFileDialog.InitialDirectory = _config.ProjectsDirectory;
@@ -104,15 +100,23 @@ namespace client_app
                     string parentDirectoryName = new DirectoryInfo(Path.GetDirectoryName(path) ?? "").Name;
 
                     if (Guid.TryParse(parentDirectoryName, out Guid projectID))
-                    {
-                        ProjectData? loadedProject = _projectService.LoadProjectAsync(projectID).Result;
-                        if (loadedProject == null)
-                            return;
-
-                        tabControl.SelectedTab = projectTab;
-                    }
+                        if (await _projectService.LoadProjectAsync(projectID) == null)
+                            Debug.WriteLine($"Failed to load project [{openFileDialog.FileName}]");
                 }
             }
+        }
+
+        private async void OnCurrentProjectChanged(ProjectData? newProject)
+        {
+            Debug.WriteLine($"Method: {nameof(OnCurrentProjectChanged)}");
+            await Task.CompletedTask;
+
+            if (tabControl.SelectedTab != projectTab)
+                tabControl.SelectTab(projectTab);
+            else
+                ReloadProjectData();
+
+            PopulateRecentProjectsMenu();
         }
     }
 }

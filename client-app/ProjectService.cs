@@ -12,9 +12,28 @@ namespace client_app
 {
     public class ProjectService
     {
+        public event Action<ProjectData?>? OnCurrentProjectChanged;
+
         private readonly AppConfiguration _config;
         private readonly List<ProjectData> _recentProjects = new();
+
         private ProjectData? _currentProject = null;
+        private ProjectData? currentProject
+        {
+            get { return _currentProject; }
+            set
+            {
+                if (_currentProject == value)
+                    return;
+
+                _currentProject = value;
+
+                if (value != null)
+                    AddToRecentProjects(value);
+
+                OnCurrentProjectChanged?.Invoke(value);
+            }
+        }
 
         public ProjectService(AppConfiguration config)
         {
@@ -27,11 +46,13 @@ namespace client_app
 
             // load last project, if configured to do so
             if (config.LoadLastProjectOnStartup && _recentProjects.Count > 0)
-                _currentProject = _recentProjects[0];
+                currentProject = _recentProjects[0];
         }
 
         public async Task<ProjectData?> CreateProjectAsync(string? name = null, string? author = null, string? description = null)
         {
+            Debug.WriteLine($"Service: [{nameof(ProjectService)}] Method: [{nameof(CreateProjectAsync)}]");
+
             await Task.CompletedTask;
 
             ProjectData newProject = new ProjectData()
@@ -41,58 +62,69 @@ namespace client_app
                 Description = description
             };
 
-            _currentProject = newProject;
-            AddToRecentProjects(newProject);
+            await SaveProjectAsync(newProject);
+            currentProject = newProject;
 
             return newProject;
         }
 
         public async Task<bool> UpdateProjectAsync(ProjectData projectData)
         {
-            if (_currentProject?.ID != projectData.ID)
+            Debug.WriteLine($"Service: [{nameof(ProjectService)}] Method: [{nameof(UpdateProjectAsync)}]");
+
+            if (currentProject?.ID != projectData.ID)
                 return false;
 
-            _currentProject.DisplayName = projectData.DisplayName;
-            _currentProject.Author = projectData.Author;
-            _currentProject.Description = projectData.Description;
+            currentProject.DisplayName = projectData.DisplayName;
+            currentProject.Author = projectData.Author;
+            currentProject.Description = projectData.Description;
 
-            return await SaveProjectAsync();
+            if (!await SaveProjectAsync())
+                return false;
+
+            return true;
         }
 
-        public async Task<ProjectData?> GetCurrentProject()
+        public ProjectData? GetCurrentProject()
         {
-            await Task.CompletedTask;
+            Debug.WriteLine($"Service: [{nameof(ProjectService)}] Method: [{nameof(GetCurrentProject)}]");
 
-            return _currentProject;
+            return currentProject;
         }
 
         public async Task<bool> SaveProjectAsync()
+            => await SaveProjectAsync(currentProject);
+
+        private async Task<bool> SaveProjectAsync(ProjectData? projectData)
         {
+            Debug.WriteLine($"Service: [{nameof(ProjectService)}] Method: [{nameof(SaveProjectAsync)}]");
+
             try
             {
-                if (_currentProject == null)
+                if (projectData == null)
                     return false;
 
-                string projectPath = GetProjectPath(_currentProject.ID);
-                if (!Directory.Exists(projectPath))
-                    Directory.CreateDirectory(projectPath);
+                string projectPath = GetProjectPath(projectData.ID);
+                Directory.CreateDirectory(projectPath);
 
                 string projectFilePath = Path.Combine(projectPath, "project.json");
-                string json = JsonConvert.SerializeObject(_currentProject, Formatting.Indented);
+                string json = JsonConvert.SerializeObject(projectData, Formatting.Indented);
                 await File.WriteAllTextAsync(projectFilePath, json).ConfigureAwait(false);
-                AddToRecentProjects(_currentProject);
 
                 return true;
             }
             catch (Exception exc)
             {
-                Debug.WriteLine($"An exception occurred when attempting to save project [{_currentProject?.DisplayName}] with ID [{_currentProject?.ID}]. Message: {exc}");
-                return false;
+                Debug.WriteLine($"An exception occurred when attempting to save project [{projectData?.DisplayName}] with ID [{projectData?.ID}]. Message: {exc}");
             }
+
+            return false;
         }
 
         public async Task<ProjectData?> LoadProjectAsync(Guid ID)
         {
+            Debug.WriteLine($"Service: [{nameof(ProjectService)}] Method: [{nameof(LoadProjectAsync)}]");
+
             try
             {
                 string projectPath = GetProjectPath(ID);
@@ -109,8 +141,7 @@ namespace client_app
                 if (project == null)
                     return null;
 
-                _currentProject = project;
-                AddToRecentProjects(project);
+                currentProject = project;
 
                 return project;
             }
@@ -124,6 +155,8 @@ namespace client_app
 
         public async Task<ProjectData?> LoadProjectAsync(string name)
         {
+            Debug.WriteLine($"Service: [{nameof(ProjectService)}] Method: [{nameof(LoadProjectAsync)}]");
+
             try
             {
                 // potentially slow-
@@ -135,13 +168,13 @@ namespace client_app
                     {
                         string json = await File.ReadAllTextAsync(projectFilePath).ConfigureAwait(false);
                         ProjectData? project = JsonConvert.DeserializeObject<ProjectData>(json);
+
                         if (project?.DisplayName == null)
-                            return null;
+                            continue;
 
                         if (project.DisplayName.Equals(name, StringComparison.OrdinalIgnoreCase))
                         {
-                            _currentProject = project;
-                            AddToRecentProjects(project);
+                            currentProject = project;
 
                             return project;
                         }
@@ -158,11 +191,15 @@ namespace client_app
 
         private string GetProjectPath(Guid ID)
         {
+            Debug.WriteLine($"Service: [{nameof(ProjectService)}] Method: [{nameof(GetProjectPath)}]");
+
             return Path.Combine(_config.ProjectsDirectory, ID.ToString());
         }
 
         private void AddToRecentProjects(ProjectData project)
         {
+            Debug.WriteLine($"Service: [{nameof(ProjectService)}] Method: [{nameof(AddToRecentProjects)}]");
+
             try
             {
                 // remove and add back to the top of the list
@@ -183,6 +220,8 @@ namespace client_app
 
         private void LoadRecentProjects()
         {
+            Debug.WriteLine($"Service: [{nameof(ProjectService)}] Method: [{nameof(LoadRecentProjects)}]");
+
             try
             {
                 _recentProjects.Clear();
@@ -219,6 +258,8 @@ namespace client_app
 
         private void SaveRecentProjects()
         {
+            Debug.WriteLine($"Service: [{nameof(ProjectService)}] Method: [{nameof(SaveRecentProjects)}]");
+
             try
             {
                 var recentProjectIDs = _recentProjects.Select(p => p.ID.ToString()).ToList();
@@ -234,20 +275,24 @@ namespace client_app
 
         public IReadOnlyList<ProjectData> GetRecentProjects()
         {
+            Debug.WriteLine($"Service: [{nameof(ProjectService)}] Method: [{nameof(GetRecentProjects)}]");
+
             return _recentProjects.AsReadOnly();
         }
 
         public async Task<bool> SaveDataAsync(string key, string data)
         {
+            Debug.WriteLine($"Service: [{nameof(ProjectService)}] Method: [{nameof(SaveDataAsync)}]");
+
             try
             {
                 if (string.IsNullOrEmpty(key))
                     return false;
 
-                if (_currentProject == null)
+                if (currentProject == null)
                     return false;
 
-                string projectPath = GetProjectPath(_currentProject.ID);
+                string projectPath = GetProjectPath(currentProject.ID);
                 string filePath = Path.Combine(projectPath, $"{key}.json");
                 await File.WriteAllTextAsync(filePath, data).ConfigureAwait(false);
 
@@ -255,34 +300,41 @@ namespace client_app
             }
             catch (Exception exc)
             {
-                Debug.WriteLine($"An exception occurred when attempting to save data for project [{_currentProject?.ID}] at key [{key}]. Message: {exc}");
-                return false;
+                Debug.WriteLine($"An exception occurred when attempting to save data for project [{currentProject?.ID}] at key [{key}]. Message: {exc}");
             }
+
+            return false;
         }
 
         public async Task<string?> LoadDataAsync(string key)
         {
+            Debug.WriteLine($"Service: [{nameof(ProjectService)}] Method: [{nameof(LoadDataAsync)}]");
+
             try
             {
                 if (string.IsNullOrWhiteSpace(key))
                     return null;
 
-                if (_currentProject == null)
+                if (currentProject == null)
                     return null;
 
-                string filePath = Path.Combine(GetProjectPath(_currentProject.ID), $"{key}.json");
+                string filePath = Path.Combine(GetProjectPath(currentProject.ID), $"{key}.json");
+                string stringContents = await File.ReadAllTextAsync(filePath);
 
-                return await File.ReadAllTextAsync(filePath);
+                return stringContents;
             }
             catch (Exception exc)
             {
-                Debug.WriteLine($"An exception occurred when attempting to load data for project [{_currentProject?.ID}] at key [{key}]. Message: {exc}");
-                return null;
+                Debug.WriteLine($"An exception occurred when attempting to load data for project [{currentProject?.ID}] at key [{key}]. Message: {exc}");
             }
+
+            return null;
         }
 
         public async Task<bool> DeleteDataAsync(string key)
         {
+            Debug.WriteLine($"Service: [{nameof(ProjectService)}] Method: [{nameof(DeleteDataAsync)}]");
+
             try
             {
                 await Task.CompletedTask;
@@ -290,19 +342,20 @@ namespace client_app
                 if (string.IsNullOrWhiteSpace(key))
                     return false;
 
-                if (_currentProject == null)
+                if (currentProject == null)
                     return false;
 
-                string filePath = Path.Combine(GetProjectPath(_currentProject.ID), $"{key}.json");
+                string filePath = Path.Combine(GetProjectPath(currentProject.ID), $"{key}.json");
                 File.Delete(filePath);
 
                 return true;
             }
             catch (Exception exc)
             {
-                Debug.WriteLine($"An exception occurred when attempting to delete data for project [{_currentProject?.ID}] at key [{key}]. Message: {exc}");
-                return false;
+                Debug.WriteLine($"An exception occurred when attempting to delete data for project [{currentProject?.ID}] at key [{key}]. Message: {exc}");
             }
+
+            return false;
         }
     }
 }

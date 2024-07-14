@@ -19,18 +19,44 @@ namespace client_app
             _projectService = projectService ?? throw new ArgumentNullException(nameof(projectService));
             _aiService = aiService ?? throw new ArgumentNullException(nameof(aiService));
 
-            InitializeComponents();
+            InitializeComponent();
         }
 
         private void MainForm_Load(object sender, EventArgs e)
         {
-            LoadCurrentProject();
+            Debug.WriteLine($"Method: {nameof(MainForm_Load)}");
+
+            ReloadProjectData();
             PopulateRecentProjectsMenu();
             LoadTasks();
+
+            _projectService.OnCurrentProjectChanged += OnCurrentProjectChanged;
         }
 
-        private void TabControl_TabIndexChanged(object sender, EventArgs e)
+        private void ReloadProjectData()
         {
+            Debug.WriteLine($"Method: {nameof(ReloadProjectData)}");
+
+            ProjectData? currentProject = _projectService.GetCurrentProject();
+            string projectName = currentProject?.DisplayName ?? currentProject?.ID.ToString() ?? ("No project loaded");
+
+            Text = $"Helper App ({projectName})";
+            projectAuthorTextBox.Text = currentProject?.Author;
+            projectNameTextBox.Text = currentProject?.DisplayName;
+            projectDescriptionTextBox.Text = currentProject?.Description;
+
+            bool projectLoaded = currentProject != null;
+            editProject_MenuItem.Enabled = projectLoaded;
+            editProject_MenuItem.Visible = projectLoaded;
+            tabControl.Enabled = projectLoaded;
+            tabControl.Visible = projectLoaded;
+        }
+
+        private async void TabControl_TabIndexChanged(object sender, EventArgs e)
+        {
+            Debug.WriteLine($"Method: {nameof(TabControl_TabIndexChanged)}");
+            await Task.CompletedTask;
+
             if (tabControl.SelectedIndex != -1)
             {
                 TabPage selectedTab = tabControl.TabPages[tabControl.SelectedIndex];

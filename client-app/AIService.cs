@@ -19,7 +19,7 @@ namespace client_app
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         }
 
-        public async Task<string?> GetAIResponse(string prompt)
+        public async Task<string?> GetAIResponseAsync(string prompt)
         {
             if (string.IsNullOrWhiteSpace(_config.ChatGPTApiKey) || string.IsNullOrWhiteSpace(_config.ChatGPTApiUrl))
             {
