@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -9,25 +10,31 @@ namespace client_app
 {
     public partial class MainForm
     {
-        private void OnAITabSelected()
+        private async void OnAITabSelected()
         {
+            Debug.WriteLine($"Method: {nameof(OnAITabSelected)}");
+            await Task.CompletedTask;
+
             bool messageAllowed = !string.IsNullOrWhiteSpace(_config?.ChatGPTApiKey) && !string.IsNullOrWhiteSpace(_config?.ChatGPTApiUrl);
-            sendButton.Enabled = messageAllowed;
+            aiSendButton.Enabled = messageAllowed;
 
             if (!messageAllowed)
             {
-                requestTextbox.Text = "Please configure the ChatGPT API key and URI to use this feature.";
-                requestTextbox.ReadOnly = true;
+                aiRequestTextbox.Text = "Please configure the ChatGPT API key and URI to use this feature.";
+                aiRequestTextbox.ReadOnly = true;
             }
         }
 
-        private async void sendButton_Click(object sender, EventArgs e)
+        private async void aiSendButton_Click(object sender, EventArgs e)
         {
-            string requestText = requestTextbox.Text;
+            Debug.WriteLine($"Method: {nameof(aiSendButton_Click)}");
+            await Task.CompletedTask;
+
+            string requestText = aiRequestTextbox.Text;
             if (!string.IsNullOrWhiteSpace(requestText))
             {
-                string? responseText = await _aiService.GetAIResponse(requestText);
-                responseTextbox.Text = responseText;
+                string? responseText = await _aiService.GetAIResponseAsync(requestText);
+                aiResponseTextbox.Text = responseText;
             }
             else
             {

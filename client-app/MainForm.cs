@@ -13,90 +13,50 @@ namespace client_app
         private AppConfiguration _config;
         private Dictionary<TabPage, Action> _tabSelectedActions = new Dictionary<TabPage, Action>();
 
-        public MainForm(ProjectService projectService, AIService chatGPTService, AppConfiguration config)
+        public MainForm(ProjectService projectService, AIService aiService, AppConfiguration config)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
             _projectService = projectService ?? throw new ArgumentNullException(nameof(projectService));
-            _aiService = chatGPTService ?? throw new ArgumentNullException(nameof(chatGPTService));
+            _aiService = aiService ?? throw new ArgumentNullException(nameof(aiService));
 
-            InitializeComponents();
+            InitializeComponent();
         }
 
-        private void MainForm_Load(object sender, EventArgs e)
+        private async void MainForm_Load(object sender, EventArgs e)
         {
-            LoadCurrentProject();
+            Debug.WriteLine($"Method: {nameof(MainForm_Load)}");
+
+            ReloadProjectData();
             PopulateRecentProjectsMenu();
-            LoadTasks();
+            await LoadTasks();
+
+            _projectService.OnCurrentProjectChanged += OnCurrentProjectChanged;
         }
 
-        private void PopulateRecentProjectsMenu()
+        private void ReloadProjectData()
         {
-            recentMenuItem.DropDownItems.Clear();
+            Debug.WriteLine($"Method: {nameof(ReloadProjectData)}");
 
-            foreach (var project in _projectService.GetRecentProjects())
-            {
-                var projectMenuItem = new ToolStripMenuItem
-                {
-                    Text = !string.IsNullOrEmpty(project.DisplayName) ? project.DisplayName : project.ID.ToString(),
-                    Tag = project.ID
-                };
+            ProjectData? currentProject = _projectService.GetCurrentProject();
+            string projectName = currentProject?.DisplayName ?? currentProject?.ID.ToString() ?? ("No project loaded");
 
-                projectMenuItem.Click += (sender, e) =>
-                {
-                    Guid? projectID = (Guid?)((ToolStripMenuItem?)sender)?.Tag;
-                    if (projectID == null)
-                        return;
+            Text = $"Helper App ({projectName})";
+            projectAuthorTextBox.Text = currentProject?.Author;
+            projectNameTextBox.Text = currentProject?.DisplayName;
+            projectDescriptionTextBox.Text = currentProject?.Description;
 
-                    ProjectData? loadedProject = _projectService.LoadProjectAsync(projectID.Value).Result;
-                    if (loadedProject == null)
-                        return;
-
-                    currentProject = loadedProject;
-                    _projectService.SetCurrentProject(currentProject).Wait();
-
-                    if (tabControl.SelectedTab == projectTab)
-                    {
-                        projectAuthorTextBox.Text = currentProject?.Author;
-                        projectNameTextBox.Text = currentProject?.DisplayName;
-                        projectDescriptionTextBox.Text = currentProject?.Description;
-                    }
-                    else
-                    {
-                        tabControl.SelectTab(projectTab);
-                    }
-                };
-
-                recentMenuItem.DropDownItems.Add(projectMenuItem);
-            }
+            bool projectLoaded = currentProject != null;
+            editProject_MenuItem.Enabled = projectLoaded;
+            editProject_MenuItem.Visible = projectLoaded;
+            tabControl.Enabled = projectLoaded;
+            tabControl.Visible = projectLoaded;
         }
 
-
-        private void LoadCurrentProject()
+        private async void TabControl_TabIndexChanged(object sender, EventArgs e)
         {
-            if (currentProject == null)
-            {
-                currentProject = _projectService.GetCurrentProject().Result;
-                if (currentProject == null)
-                {
-                    currentProject = new ProjectData(Guid.NewGuid());
-                    currentProject.DisplayName = "Initial Project";
-                    currentProject.Author = "Batman";
+            Debug.WriteLine($"Method: {nameof(TabControl_TabIndexChanged)}");
+            await Task.CompletedTask;
 
-                    _projectService.SetCurrentProject(currentProject).Wait();
-                    _projectService.SaveProjectAsync().Wait();
-                }
-            }
-
-            if (tabControl.SelectedTab == projectTab)
-            {
-                projectAuthorTextBox.Text = currentProject.Author;
-                projectNameTextBox.Text = currentProject.DisplayName;
-                projectDescriptionTextBox.Text = currentProject.Description;
-            }
-        }
-
-        private void TabControl_TabIndexChanged(object sender, EventArgs e)
-        {
             if (tabControl.SelectedIndex != -1)
             {
                 TabPage selectedTab = tabControl.TabPages[tabControl.SelectedIndex];
@@ -108,65 +68,6 @@ namespace client_app
                     {
                         tabPage.Value?.Invoke();
                         break;
-                    }
-                }
-            }
-        }
-
-        private void CreateNewMenuItem_Click(object sender, EventArgs e)
-        {
-            currentProject = new ProjectData(Guid.NewGuid());
-            _projectService.SetCurrentProject(currentProject).Wait();
-            _ = _projectService.SaveProjectAsync().Result;
-
-            if (tabControl.SelectedTab == projectTab)
-            {
-                projectAuthorTextBox.Text = currentProject?.Author;
-                projectNameTextBox.Text = currentProject?.DisplayName;
-                projectDescriptionTextBox.Text = currentProject?.Description;
-            }
-            else
-            {
-                tabControl.SelectedTab = projectTab;
-            }
-        }
-
-        private void EditMenuItem_Click(object sender, EventArgs e)
-        {
-            tabControl.SelectedTab = projectTab;
-        }
-
-        private void LoadMenuItem_Click(object sender, EventArgs e)
-        {
-            using (var openFileDialog = new OpenFileDialog())
-            {
-                openFileDialog.InitialDirectory = _config.ProjectsDirectory;
-                openFileDialog.Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*";
-
-                if (openFileDialog.ShowDialog() == DialogResult.OK)
-                {
-                    string path = openFileDialog.FileName;
-                    string parentDirectoryName = new DirectoryInfo(Path.GetDirectoryName(path) ?? "").Name;
-
-                    if (Guid.TryParse(parentDirectoryName, out Guid projectID))
-                    {
-                        ProjectData? loadedProject = _projectService.LoadProjectAsync(projectID).Result;
-                        if (loadedProject != null)
-                        {
-                            currentProject = loadedProject;
-                            _projectService.SetCurrentProject(currentProject).Wait();
-                        }
-
-                        if (tabControl.SelectedTab == projectTab)
-                        {
-                            projectAuthorTextBox.Text = currentProject?.Author;
-                            projectNameTextBox.Text = currentProject?.DisplayName;
-                            projectDescriptionTextBox.Text = currentProject?.Description;
-                        }
-                        else
-                        {
-                            tabControl.SelectedTab = projectTab;
-                        }
                     }
                 }
             }

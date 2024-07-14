@@ -27,9 +27,20 @@ namespace client_app
         [JsonProperty("deleted_at")]
         public DateTime? DeletedAt { get; set; }
 
+        public ProjectData()
+        {
+            this.ID = Guid.NewGuid();
+
+            CreatedAt = DateTime.UtcNow;
+            LastUpdatedAt = CreatedAt;
+        }
+
         public ProjectData(Guid ID)
         {
             this.ID = ID;
+
+            CreatedAt = DateTime.UtcNow;
+            LastUpdatedAt = CreatedAt;
         }
     }
 }
