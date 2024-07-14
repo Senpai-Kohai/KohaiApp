@@ -12,11 +12,11 @@ namespace client_app
         private System.ComponentModel.IContainer components = null;
         private TabControl tabControl;
         private MenuStrip menuStrip;
-        private ToolStripMenuItem projectMenu;
-        private ToolStripMenuItem createNewMenuItem;
-        private ToolStripMenuItem editMenuItem;
-        private ToolStripMenuItem loadMenuItem;
-        private ToolStripMenuItem recentMenuItem;
+        private ToolStripMenuItem projectsMenu;
+        private ToolStripMenuItem createProject_MenuItem;
+        private ToolStripMenuItem editProject_MenuItem;
+        private ToolStripMenuItem loadProject_MenuItem;
+        private ToolStripMenuItem recentProjects_MenuItem;
 
         protected override void Dispose(bool disposing)
         {
@@ -31,32 +31,32 @@ namespace client_app
         {
             // file menu initialization
             menuStrip = new MenuStrip();
-            projectMenu = new ToolStripMenuItem();
-            createNewMenuItem = new ToolStripMenuItem();
-            editMenuItem = new ToolStripMenuItem();
-            loadMenuItem = new ToolStripMenuItem();
-            recentMenuItem = new ToolStripMenuItem();
+            projectsMenu = new ToolStripMenuItem();
+            createProject_MenuItem = new ToolStripMenuItem();
+            editProject_MenuItem = new ToolStripMenuItem();
+            loadProject_MenuItem = new ToolStripMenuItem();
+            recentProjects_MenuItem = new ToolStripMenuItem();
 
             menuStrip.Items.AddRange(new ToolStripItem[] {
-                projectMenu,
+                projectsMenu,
             });
 
-            projectMenu.DropDownItems.AddRange(new ToolStripItem[] {
-                createNewMenuItem,
-                editMenuItem,
-                loadMenuItem,
-                recentMenuItem,
+            projectsMenu.DropDownItems.AddRange(new ToolStripItem[] {
+                createProject_MenuItem,
+                editProject_MenuItem,
+                loadProject_MenuItem,
+                recentProjects_MenuItem,
             });
 
-            projectMenu.Text = "Project";
-            createNewMenuItem.Text = "Create New";
-            editMenuItem.Text = "Edit";
-            loadMenuItem.Text = "Load";
-            recentMenuItem.Text = "Recent";
+            projectsMenu.Text = "Projects";
+            createProject_MenuItem.Text = "Create";
+            editProject_MenuItem.Text = "Edit";
+            loadProject_MenuItem.Text = "Load";
+            recentProjects_MenuItem.Text = "Recent";
 
-            createNewMenuItem.Click += new EventHandler(CreateNewMenuItem_Click);
-            editMenuItem.Click += new EventHandler(EditMenuItem_Click);
-            loadMenuItem.Click += new EventHandler(LoadMenuItem_Click);
+            createProject_MenuItem.Click += new EventHandler(CreateProject_MenuItem_Click);
+            editProject_MenuItem.Click += new EventHandler(EditProject_MenuItem_Click);
+            loadProject_MenuItem.Click += new EventHandler(LoadProject_MenuItem_Click);
 
             menuStrip.Location = new System.Drawing.Point(0, 0);
             menuStrip.Name = "menuStrip";
@@ -101,7 +101,7 @@ namespace client_app
             ClientSize = new Size(366, 422);
             Controls.Add(tabControl);
             Name = "MainForm";
-            Text = "Task List and Chat";
+            Text = "Helper App (No Project Loaded)";
             Load += MainForm_Load;
             tabControl.ResumeLayout(false);
             projectTab.ResumeLayout(false);

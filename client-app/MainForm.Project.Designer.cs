@@ -15,7 +15,6 @@ namespace client_app
         private TextBox projectAuthorTextBox;
         private TextBox projectDescriptionTextBox;
         private Button saveProjectButton;
-        private ProjectData currentProject;
 
         private void InitializeProjectComponents()
         {
@@ -67,7 +66,7 @@ namespace client_app
             saveProjectButton.TabIndex = 3;
             saveProjectButton.Text = "Save";
             saveProjectButton.UseVisualStyleBackColor = true;
-            saveProjectButton.Click += new EventHandler(SaveProjectButton_Click);
+            saveProjectButton.Click += new EventHandler(SaveProject_Button_Click);
         }
     }
 }
