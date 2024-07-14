@@ -53,7 +53,6 @@ namespace client_app
             editMenuItem.Text = "Edit";
             loadMenuItem.Text = "Load";
             recentMenuItem.Text = "Recent";
-            editMenuItem.Enabled = false;
 
             createNewMenuItem.Click += new EventHandler(CreateNewMenuItem_Click);
             editMenuItem.Click += new EventHandler(EditMenuItem_Click);

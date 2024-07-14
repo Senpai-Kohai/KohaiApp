@@ -25,8 +25,51 @@ namespace client_app
         private void MainForm_Load(object sender, EventArgs e)
         {
             LoadCurrentProject();
+            PopulateRecentProjectsMenu();
             LoadTasks();
         }
+
+        private void PopulateRecentProjectsMenu()
+        {
+            recentMenuItem.DropDownItems.Clear();
+
+            foreach (var project in _projectService.GetRecentProjects())
+            {
+                var projectMenuItem = new ToolStripMenuItem
+                {
+                    Text = !string.IsNullOrEmpty(project.DisplayName) ? project.DisplayName : project.ID.ToString(),
+                    Tag = project.ID
+                };
+
+                projectMenuItem.Click += (sender, e) =>
+                {
+                    Guid? projectID = (Guid?)((ToolStripMenuItem?)sender)?.Tag;
+                    if (projectID == null)
+                        return;
+
+                    ProjectData? loadedProject = _projectService.LoadProjectAsync(projectID.Value).Result;
+                    if (loadedProject == null)
+                        return;
+
+                    currentProject = loadedProject;
+                    _projectService.SetCurrentProject(currentProject).Wait();
+
+                    if (tabControl.SelectedTab == projectTab)
+                    {
+                        projectAuthorTextBox.Text = currentProject?.Author;
+                        projectNameTextBox.Text = currentProject?.DisplayName;
+                        projectDescriptionTextBox.Text = currentProject?.Description;
+                    }
+                    else
+                    {
+                        tabControl.SelectTab(projectTab);
+                    }
+                };
+
+                recentMenuItem.DropDownItems.Add(projectMenuItem);
+            }
+        }
+
 
         private void LoadCurrentProject()
         {
@@ -128,6 +171,5 @@ namespace client_app
                 }
             }
         }
-
     }
 }

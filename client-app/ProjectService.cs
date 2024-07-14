@@ -211,7 +211,7 @@ namespace client_app
             {
                 // remove and add back to the top of the list
                 // so that the list is in last-load order
-                _recentProjects.RemoveAll(p => p.ID == project.ID);
+                _recentProjects.RemoveAll(_ => _.ID == project.ID);
                 _recentProjects.Insert(0, project);
 
                 if (_recentProjects.Count > 10)
@@ -229,6 +229,8 @@ namespace client_app
         {
             try
             {
+                _recentProjects.Clear();
+
                 if (File.Exists(_config.RecentProjectsFilename))
                 {
                     string recentIDsString = File.ReadAllTextAsync(_config.RecentProjectsFilename).Result;
@@ -239,9 +241,15 @@ namespace client_app
                         {
                             if (Guid.TryParse(recentID, out Guid projectID))
                             {
-                                ProjectData? loadedProject = LoadProjectAsync(projectID).Result;
-                                if (loadedProject != null)
-                                    _recentProjects.Add(loadedProject);
+                                ProjectData? recentProject = LoadProjectAsync(projectID).Result;
+                                if (recentProject != null)
+                                {
+                                    _recentProjects.RemoveAll(_ => _.ID == projectID);
+                                    _recentProjects.Add(recentProject);
+
+                                    if (_recentProjects.Count == 10)
+                                        break;
+                                }
                             }
                         }
                     }
