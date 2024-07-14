@@ -20,6 +20,10 @@ namespace client_app
             _aiService = aiService ?? throw new ArgumentNullException(nameof(aiService));
 
             InitializeComponent();
+
+            _tabSelectedActions[projectTab] = OnProjectTabSelected;
+            _tabSelectedActions[taskListTab] = OnTaskListTabSelected;
+            _tabSelectedActions[aiTab] = OnAITabSelected;
         }
 
         private async void MainForm_Load(object sender, EventArgs e)
