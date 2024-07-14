@@ -8,107 +8,90 @@ namespace client_app
 {
     public partial class MainForm : Form
     {
-        private List<TaskItem> tasks = new List<TaskItem>();
+        private ProjectService _projectService;
+        private readonly AIService _aiService;
+        private AppConfiguration _config;
+        private Dictionary<TabPage, Action> _tabSelectedActions = new Dictionary<TabPage, Action>();
 
-        public MainForm()
+        public MainForm(ProjectService projectService, AIService chatGPTService, AppConfiguration config)
         {
-            InitializeComponent();
+            _config = config ?? throw new ArgumentNullException(nameof(config));
+            _projectService = projectService ?? throw new ArgumentNullException(nameof(projectService));
+            _aiService = chatGPTService ?? throw new ArgumentNullException(nameof(chatGPTService));
+
+            InitializeComponents();
         }
 
         private void MainForm_Load(object sender, EventArgs e)
         {
+            LoadCurrentProject();
+            PopulateRecentProjectsMenu();
             LoadTasks();
         }
 
-        private void addButton_Click(object sender, EventArgs e)
+        private void PopulateRecentProjectsMenu()
         {
-            string taskDescription = taskTextBox.Text;
-            if (!string.IsNullOrWhiteSpace(taskDescription))
-            {
-                var task = new TaskItem { Description = taskDescription, IsCompleted = false };
-                tasks.Add(task);
-                tasksListBox.Items.Add(task.Description);
-                taskTextBox.Clear();
-                SaveTasks();
-            }
-            else
-            {
-                MessageBox.Show("Please enter a task.");
-            }
-        }
+            recentMenuItem.DropDownItems.Clear();
 
-        private void editButton_Click(object sender, EventArgs e)
-        {
-            if (tasksListBox.SelectedIndex != -1)
+            foreach (var project in _projectService.GetRecentProjects())
             {
-                int selectedIndex = tasksListBox.SelectedIndex;
-                var task = tasks[selectedIndex];
-
-                using (var editTaskForm = new EditTaskForm(task.Description ?? "", task.IsCompleted))
+                var projectMenuItem = new ToolStripMenuItem
                 {
-                    if (editTaskForm.ShowDialog() == DialogResult.OK)
+                    Text = !string.IsNullOrEmpty(project.DisplayName) ? project.DisplayName : project.ID.ToString(),
+                    Tag = project.ID
+                };
+
+                projectMenuItem.Click += (sender, e) =>
+                {
+                    Guid? projectID = (Guid?)((ToolStripMenuItem?)sender)?.Tag;
+                    if (projectID == null)
+                        return;
+
+                    ProjectData? loadedProject = _projectService.LoadProjectAsync(projectID.Value).Result;
+                    if (loadedProject == null)
+                        return;
+
+                    currentProject = loadedProject;
+                    _projectService.SetCurrentProject(currentProject).Wait();
+
+                    if (tabControl.SelectedTab == projectTab)
                     {
-                        task.Description = editTaskForm.TaskDescription;
-                        task.IsCompleted = editTaskForm.IsCompleted;
-                        tasksListBox.Items[selectedIndex] = task.Description + (task.IsCompleted ? " (Completed)" : string.Empty);
-                        SaveTasks();
+                        projectAuthorTextBox.Text = currentProject?.Author;
+                        projectNameTextBox.Text = currentProject?.DisplayName;
+                        projectDescriptionTextBox.Text = currentProject?.Description;
                     }
-                }
-            }
-            else
-            {
-                MessageBox.Show("Please select a task to edit.");
-            }
-        }
-
-        private void removeButton_Click(object sender, EventArgs e)
-        {
-            if (tasksListBox.SelectedIndex != -1)
-            {
-                tasks.RemoveAt(tasksListBox.SelectedIndex);
-                tasksListBox.Items.RemoveAt(tasksListBox.SelectedIndex);
-                SaveTasks();
-            }
-            else
-            {
-                MessageBox.Show("Please select a task to remove.");
-            }
-        }
-
-        private void completeButton_Click(object sender, EventArgs e)
-        {
-            if (tasksListBox.SelectedIndex != -1)
-            {
-                var task = tasks[tasksListBox.SelectedIndex];
-                task.IsCompleted = !task.IsCompleted;
-
-                if (task.Description != null)
-                {
-                    if (task.IsCompleted)
-                        tasksListBox.Items[tasksListBox.SelectedIndex] = task.Description + " (Completed)";
                     else
-                        tasksListBox.Items[tasksListBox.SelectedIndex] = task.Description;
+                    {
+                        tabControl.SelectTab(projectTab);
+                    }
+                };
 
-                    SaveTasks();
-                }
-            }
-            else
-            {
-                MessageBox.Show("Please select a task to mark as completed.");
+                recentMenuItem.DropDownItems.Add(projectMenuItem);
             }
         }
 
-        private async void sendButton_Click(object sender, EventArgs e)
+
+        private void LoadCurrentProject()
         {
-            string requestText = requestTextbox.Text;
-            if (!string.IsNullOrWhiteSpace(requestText))
+            if (currentProject == null)
             {
-                string? responseText = await GetChatGPTResponse(requestText);
-                responseTextbox.Text = responseText;
+                currentProject = _projectService.GetCurrentProject().Result;
+                if (currentProject == null)
+                {
+                    currentProject = new ProjectData(Guid.NewGuid());
+                    currentProject.DisplayName = "Initial Project";
+                    currentProject.Author = "Batman";
+
+                    _projectService.SetCurrentProject(currentProject).Wait();
+                    _projectService.SaveProjectAsync().Wait();
+                }
             }
-            else
+
+            if (tabControl.SelectedTab == projectTab)
             {
-                MessageBox.Show("Please enter a request.");
+                projectAuthorTextBox.Text = currentProject.Author;
+                projectNameTextBox.Text = currentProject.DisplayName;
+                projectDescriptionTextBox.Text = currentProject.Description;
             }
         }
 
@@ -119,97 +102,73 @@ namespace client_app
                 TabPage selectedTab = tabControl.TabPages[tabControl.SelectedIndex];
                 string tabName = selectedTab.Name;
 
-                if (string.Equals("chatTab", tabName, StringComparison.InvariantCultureIgnoreCase))
+                foreach (var tabPage in _tabSelectedActions)
                 {
-                    bool messageAllowed = !string.IsNullOrWhiteSpace(Program.AppConfig?.ChatGPTApiKey) && !string.IsNullOrWhiteSpace(Program.AppConfig?.ChatGPTApiUrl);
-                    sendButton.Enabled = messageAllowed;
-
-                    if (!messageAllowed)
+                    if (string.Equals(tabPage.Key.Name, tabName, StringComparison.OrdinalIgnoreCase))
                     {
-                        requestTextbox.Text = "Please configure the ChatGPT API key and URI to use this feature.";
-                        requestTextbox.ReadOnly = true;
+                        tabPage.Value?.Invoke();
+                        break;
                     }
                 }
             }
         }
 
-        private async Task<string?> GetChatGPTResponse(string prompt)
+        private void CreateNewMenuItem_Click(object sender, EventArgs e)
         {
-            var requestBody = new JObject
+            currentProject = new ProjectData(Guid.NewGuid());
+            _projectService.SetCurrentProject(currentProject).Wait();
+            _ = _projectService.SaveProjectAsync().Result;
+
+            if (tabControl.SelectedTab == projectTab)
             {
-                { "model", "gpt-3.5-turbo-16k" },
-                { "messages", new JArray() {
-                    new JObject {
-                        { "role", "user" },
-                        { "content", prompt }
-                    }
-                } },
-                { "temperature", 0.7 }
-            };
-
-            string jsonBody = requestBody.ToString();
-            Debug.WriteLine($"Request body: {jsonBody}");
-
-            using (var requestMessage = new HttpRequestMessage(HttpMethod.Post, Program.AppConfig?.ChatGPTApiUrl))
-            {
-                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", Program.AppConfig?.ChatGPTApiKey);
-                requestMessage.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
-
-                HttpResponseMessage response = await Program.HttpClient.SendAsync(requestMessage);
-                if (response.IsSuccessStatusCode)
-                {
-                    string jsonResponse = await response.Content.ReadAsStringAsync();
-                    Debug.WriteLine($"Response JSON: {jsonResponse}");
-                    JObject responseObj = JObject.Parse(jsonResponse);
-
-                    JArray? responseChoices = responseObj["choices"] as JArray;
-                    string? responseText = null;
-
-                    if (responseChoices != null && responseChoices.Count > 0)
-                    {
-                        JObject? choiceMessage = (JObject?)responseChoices[0]?["message"];
-                        if (choiceMessage != null)
-                        {
-                            responseText = (string?)choiceMessage["content"];
-                        }
-                    }
-
-                    if (string.IsNullOrWhiteSpace(responseText))
-                    {
-                        Debug.WriteLine("A message could not be parsed from the response.");
-                        return "A message could not be parsed from the response.";
-                    }
-
-                    return responseText;
-                }
-                else
-                {
-                    Debug.WriteLine($"Error: {response.ReasonPhrase}");
-                    return $"Error: {response.ReasonPhrase}";
-                }
-            }
-        }
-
-        private void SaveTasks()
-        {
-            var json = JsonConvert.SerializeObject(tasks, Formatting.Indented);
-            File.WriteAllText(Program.FilePath, json);
-        }
-
-        private void LoadTasks()
-        {
-            if (File.Exists(Program.FilePath))
-            {
-                var json = File.ReadAllText(Program.FilePath);
-                tasks = JsonConvert.DeserializeObject<List<TaskItem>>(json) ?? new List<TaskItem>();
-                foreach (var task in tasks)
-                {
-                    tasksListBox.Items.Add(task.Description + (task.IsCompleted ? " (Completed)" : string.Empty));
-                }
+                projectAuthorTextBox.Text = currentProject?.Author;
+                projectNameTextBox.Text = currentProject?.DisplayName;
+                projectDescriptionTextBox.Text = currentProject?.Description;
             }
             else
             {
-                tasks = new List<TaskItem>();
+                tabControl.SelectedTab = projectTab;
+            }
+        }
+
+        private void EditMenuItem_Click(object sender, EventArgs e)
+        {
+            tabControl.SelectedTab = projectTab;
+        }
+
+        private void LoadMenuItem_Click(object sender, EventArgs e)
+        {
+            using (var openFileDialog = new OpenFileDialog())
+            {
+                openFileDialog.InitialDirectory = _config.ProjectsDirectory;
+                openFileDialog.Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*";
+
+                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    string path = openFileDialog.FileName;
+                    string parentDirectoryName = new DirectoryInfo(Path.GetDirectoryName(path) ?? "").Name;
+
+                    if (Guid.TryParse(parentDirectoryName, out Guid projectID))
+                    {
+                        ProjectData? loadedProject = _projectService.LoadProjectAsync(projectID).Result;
+                        if (loadedProject != null)
+                        {
+                            currentProject = loadedProject;
+                            _projectService.SetCurrentProject(currentProject).Wait();
+                        }
+
+                        if (tabControl.SelectedTab == projectTab)
+                        {
+                            projectAuthorTextBox.Text = currentProject?.Author;
+                            projectNameTextBox.Text = currentProject?.DisplayName;
+                            projectDescriptionTextBox.Text = currentProject?.Description;
+                        }
+                        else
+                        {
+                            tabControl.SelectedTab = projectTab;
+                        }
+                    }
+                }
             }
         }
     }
