@@ -22,13 +22,13 @@ namespace client_app
             InitializeComponent();
         }
 
-        private void MainForm_Load(object sender, EventArgs e)
+        private async void MainForm_Load(object sender, EventArgs e)
         {
             Debug.WriteLine($"Method: {nameof(MainForm_Load)}");
 
             ReloadProjectData();
             PopulateRecentProjectsMenu();
-            LoadTasks();
+            await LoadTasks();
 
             _projectService.OnCurrentProjectChanged += OnCurrentProjectChanged;
         }
