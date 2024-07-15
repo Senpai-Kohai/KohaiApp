@@ -19,7 +19,7 @@ namespace client_app
         public string? ChatGPTApiKey { get; set; }
         public string? ChatGPTApiUrl { get; set; }
         public string? ChatGPTAssistantAI { get; set; }
-        public int ChatGPTRetryMaxAttempts { get; set; } = 10;
-        public int ChatGPTRetryInterval { get; set; } = 100;
+        public int ChatGPTRetryMaxAttempts { get; set; } = 50;
+        public int ChatGPTRetryInterval { get; set; } = 200;
     }
 }

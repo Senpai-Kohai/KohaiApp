@@ -108,6 +108,26 @@ namespace client_app
                 return null;
             }
 
+            try
+            {
+                if (response.StartsWith('{'))
+                {
+                    JObject responseObj = JObject.Parse(response);
+
+                    string? functionName = responseObj["function"]?.ToString();
+                    if (string.Equals("create_character_profile", functionName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        string? characterNickname = (string?)responseObj["nickname"];
+                        int? characterAge = (int?)responseObj["age"];
+                        response = $"A new character profile was created!\n  Name: {characterNickname}\n  Age: {characterAge}";
+                    }
+                }
+            }
+            catch (Exception exc)
+            {
+                Debug.WriteLine($"An exception occurred parsing an Assistant AI response as a function payload: {exc}");
+            }
+
             return response;
         }
 
@@ -226,7 +246,24 @@ namespace client_app
 
             for (int i = 0; i < _config.ChatGPTRetryMaxAttempts; i++)
             {
-                if (await PollForAssistantAIRunCompletionState(runID) == "completed")
+                JObject? responseObj = await GetAssistantAIRunState(runID);
+                string? runState = (string ?)responseObj?["status"];
+
+                Debug.WriteLine($"Current run state: [{runState}]");
+
+                if (string.Equals("requires_action", runState, StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var runStatePrintedLine in responseObj?.ToString(Formatting.Indented)?.Split('\n'))
+                        Debug.WriteLine($"{runStatePrintedLine}");
+
+                    string? requiredActionsStr = (await GetFunctionCallsFromRequiredActions(runID, responseObj))?.ToString(Formatting.None);
+                    if (!string.IsNullOrWhiteSpace(requiredActionsStr))
+                        return requiredActionsStr;
+
+                    break;
+                }
+
+                if (string.Equals("completed", runState, StringComparison.OrdinalIgnoreCase))
                 {
                     success = true;
                     break;
@@ -237,6 +274,75 @@ namespace client_app
 
             if (success)
                 return await GetLastMessageFromCurrentThread();
+
+            return null;
+        }
+
+        private async Task<JArray?> GetFunctionCallsFromRequiredActions(string runID, JObject responseObject)
+        {
+            if (string.IsNullOrWhiteSpace(_config.ChatGPTApiKey) || string.IsNullOrWhiteSpace(_config.ChatGPTApiUrl))
+            {
+                Debug.WriteLine($"Error communicating with ChatGPT Run Thread Assistant API endpoint: API key or url not configured.");
+
+                return null;
+            }
+
+            JArray confirmToolOutputs = new JArray();
+            JArray functionCalls = new JArray();
+            JObject? requiredAction = (JObject?)responseObject["required_action"];
+
+            if (requiredAction == null)
+                return null;
+
+            JObject? submitToolOutputs = (JObject?)requiredAction["submit_tool_outputs"];
+            if (submitToolOutputs == null)
+                return null;
+
+            JArray? toolCalls = (JArray?)submitToolOutputs["tool_calls"];
+            if (toolCalls == null)
+                return null;
+
+            foreach (var toolCallObj in toolCalls)
+            {
+                string? toolCallID = (string?)toolCallObj["id"];
+                string? toolStringValue = (string?)toolCallObj["function"]?["arguments"];
+                if (string.IsNullOrEmpty(toolStringValue))
+                    continue;
+
+                JObject? newFunctionCall = JObject.Parse(toolStringValue);
+                if (newFunctionCall != null)
+                {
+                    confirmToolOutputs.Add(new JObject() { ["tool_call_id"] = toolCallID, ["output"] = toolStringValue });
+                    functionCalls.Add(newFunctionCall);
+                }
+            }
+
+            if (confirmToolOutputs.Count == 0)
+                return null;
+
+            string submitUri = $"{_config.ChatGPTApiUrl}/threads/{currentThreadID}/runs/{runID}/submit_tool_outputs";
+            using (var requestMessage = new HttpRequestMessage(HttpMethod.Post, submitUri))
+            {
+                JObject messagePayload = new JObject()
+                {
+                    ["tool_outputs"] = confirmToolOutputs
+                };
+
+                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _config.ChatGPTApiKey);
+                requestMessage.Headers.Add("OpenAI-Beta", "assistants=v2");
+                requestMessage.Content = new StringContent(messagePayload.ToString(), Encoding.UTF8, "application/json");
+
+                HttpResponseMessage submitResponse = await _httpClient.SendAsync(requestMessage);
+                if (submitResponse.IsSuccessStatusCode)
+                {
+                    return functionCalls;
+                }
+                else
+                {
+                    string responseContent = await submitResponse.Content.ReadAsStringAsync();
+                    Debug.WriteLine($"Error submitting tool outputs: {submitResponse.ReasonPhrase}, Content: {responseContent}");
+                }
+            }
 
             return null;
         }
@@ -290,7 +396,7 @@ namespace client_app
             }
         }
 
-        private async Task<string?> PollForAssistantAIRunCompletionState(string runID)
+        private async Task<JObject?> GetAssistantAIRunState(string runID)
         {
             if (string.IsNullOrWhiteSpace(currentThreadID))
             {
@@ -321,7 +427,7 @@ namespace client_app
                     string jsonResponse = await response.Content.ReadAsStringAsync();
                     JObject responseObject = JObject.Parse(jsonResponse);
 
-                    return (string?)responseObject?["status"];
+                    return responseObject;
                 }
                 else
                 {
