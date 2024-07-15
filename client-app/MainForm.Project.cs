@@ -111,12 +111,20 @@ namespace client_app
             Debug.WriteLine($"Method: {nameof(OnCurrentProjectChanged)}");
             await Task.CompletedTask;
 
-            if (tabControl.SelectedTab != projectTab)
-                tabControl.SelectTab(projectTab);
+            if (InvokeRequired)
+            {
+                // If the method is called from a different thread, invoke it on the UI thread
+                Invoke(new Action<ProjectData?>(OnCurrentProjectChanged), newProject);
+            }
             else
-                ReloadProjectData();
+            {
+                if (tabControl.SelectedTab != projectTab)
+                    tabControl.SelectTab(projectTab);
+                else
+                    ReloadProjectData();
 
-            PopulateRecentProjectsMenu();
+                PopulateRecentProjectsMenu();
+            }
         }
     }
 }
