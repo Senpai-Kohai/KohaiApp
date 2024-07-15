@@ -30,6 +30,7 @@ namespace client_app
         // ai
         private TabPage aiTab;
         private Button aiSendButton;
+        private Button aiAssistantSendButton;
         private TextBox aiRequestTextbox;
         private TextBox aiResponseTextbox;
         private Label aiResponseLabel;
@@ -80,6 +81,7 @@ namespace client_app
             tasksListBox = new ListBox();
             taskRemoveButton = new Button();
             taskCompleteButton = new Button();
+            aiAssistantSendButton = new Button();
             menuStrip.SuspendLayout();
             tabControl.SuspendLayout();
             projectTab.SuspendLayout();
@@ -212,6 +214,7 @@ namespace client_app
             aiTab.Controls.Add(aiRequestLabel);
             aiTab.Controls.Add(aiRequestTextbox);
             aiTab.Controls.Add(aiSendButton);
+            aiTab.Controls.Add(aiAssistantSendButton);
             aiTab.Location = new Point(4, 27);
             aiTab.Name = "aiTab";
             aiTab.Padding = new Padding(3);
@@ -228,6 +231,7 @@ namespace client_app
             aiResponseTextbox.Name = "aiResponseTextbox";
             aiResponseTextbox.PlaceholderText = "Please make a request.";
             aiResponseTextbox.ReadOnly = true;
+            aiResponseTextbox.ScrollBars = ScrollBars.Vertical;
             aiResponseTextbox.Size = new Size(539, 222);
             aiResponseTextbox.TabIndex = 3;
             // 
@@ -350,6 +354,17 @@ namespace client_app
             taskCompleteButton.Text = "Complete";
             taskCompleteButton.UseVisualStyleBackColor = true;
             taskCompleteButton.Click += taskCompleteButton_Click;
+            // 
+            // aiAssistantSendButton
+            // 
+            aiAssistantSendButton.BackColor = Color.FromArgb(192, 255, 192);
+            aiAssistantSendButton.Location = new Point(116, 133);
+            aiAssistantSendButton.Name = "aiAssistantSendButton";
+            aiAssistantSendButton.Size = new Size(200, 30);
+            aiAssistantSendButton.TabIndex = 5;
+            aiAssistantSendButton.Text = "Send (Assistant)";
+            aiAssistantSendButton.UseVisualStyleBackColor = false;
+            aiAssistantSendButton.Click += aiAssistantSendButton_Click;
             // 
             // MainForm
             // 
