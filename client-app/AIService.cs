@@ -14,12 +14,59 @@ namespace client_app
     /// </summary>
     public class AIService : ServiceBase<AIServiceConfiguration>
     {
-        private readonly HttpClient _httpClient;
+        private OpenAI.Chat.ChatClient? _chatClient;
+#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+        private OpenAI.Assistants.AssistantClient? _assistantClient;
+#pragma warning restore OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+        private OpenAI.Files.FileClient? _fileClient;
+
+        private readonly OpenAI.OpenAIClient? _openAIClient;
+        private readonly HttpClient? _httpClient;
         private string? currentThreadID;
+
+        public bool ServiceEnabled => _openAIClient != null && _httpClient != null;
 
         public AIService(HttpClient httpClient)
         {
+            if (ServiceConfiguration.ChatGPTApiKey == null)
+            {
+                Debug.WriteLine($"Error starting AI service: API key not configured.");
+
+                return;
+            }
+
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+            _openAIClient = new OpenAI.OpenAIClient(ServiceConfiguration.ChatGPTApiKey);
+        }
+
+        public async Task<string?> New_GetAICompletionResponseAsync(string prompt)
+        {
+            if (!ServiceEnabled)
+            {
+                Debug.WriteLine($"Error communicating with ChatGPT Completion API endpoint: AI service is not running.");
+
+                return null;
+            }
+
+            if (_chatClient == null)
+                _chatClient = _openAIClient?.GetChatClient("gpt-4o") ?? throw new NullReferenceException("Chat client is null");
+
+            try
+            {
+                var completionOptions = new OpenAI.Chat.ChatCompletionOptions()
+                {
+                    User = "user"
+                };
+                var result = await _chatClient.CompleteChatAsync(new[] { new OpenAI.Chat.AssistantChatMessage(prompt) }, completionOptions, Program.ShutdownTokenSource.Token);
+
+                return result.Value.Content.ToString();
+            }
+            catch (Exception exc)
+            {
+                Debug.WriteLine($"Error communicating with ChatGPT completion API endpoint. Exception: {exc}");
+
+                return $"Error: {exc}";
+            }
         }
 
         public async Task<string?> GetAICompletionResponseAsync(string prompt)

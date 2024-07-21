@@ -14,12 +14,16 @@ namespace client_app
         private static IConfiguration? Configuration { get; set; }
         private static ServiceProvider? ServiceProvider { get; set; }
 
+        public static CancellationTokenSource ShutdownTokenSource { get; private set; }
+
         /// <summary>
         ///  The main entry point for the application.
         /// </summary>
         [STAThread]
         static void Main()
         {
+            ShutdownTokenSource = new CancellationTokenSource();
+
             var builder = new ConfigurationBuilder()
                 .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
                 .AddEnvironmentVariables()
@@ -44,6 +48,13 @@ namespace client_app
 
             // Start the main form of the application
             Application.Run(ServiceProvider.GetRequiredService<MainForm>());
+
+            ShutdownTokenSource.Cancel();
+        }
+
+        public static void InitiateShutdown()
+        {
+            ShutdownTokenSource.Cancel();
         }
 
         private static void ConfigureServices(ServiceCollection services)
