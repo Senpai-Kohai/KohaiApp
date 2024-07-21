@@ -28,5 +28,7 @@ namespace client_app
                 _serviceConfiguration = value;
             }
         }
+
+        public abstract bool ServiceRunning { get; }
     }
 }

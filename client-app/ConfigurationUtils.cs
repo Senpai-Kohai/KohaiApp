@@ -76,10 +76,14 @@ namespace client_app
                 .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
                 .AddEnvironmentVariables()
                 .AddEnvironmentVariables(prefix: sectionName)
+                .AddCommandLine(Environment.GetCommandLineArgs(), null)
                 .AddCommandLine(Environment.GetCommandLineArgs(), switchMappings)
                 .Build();
 
             // Bind the combined configuration to the instance
+            sectionConfiguration.Bind(configInstance);
+
+            // Bind the section too, if provided
             if (!string.IsNullOrWhiteSpace(sectionName))
                 sectionConfiguration.GetSection(sectionName).Bind(configInstance);
 

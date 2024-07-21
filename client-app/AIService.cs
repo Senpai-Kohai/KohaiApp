@@ -24,7 +24,7 @@ namespace client_app
         private readonly HttpClient? _httpClient;
         private string? currentThreadID;
 
-        public bool ServiceEnabled => _openAIClient != null && _httpClient != null;
+        public override bool ServiceRunning => _openAIClient != null && _httpClient != null;
 
         public AIService(HttpClient httpClient)
         {
@@ -41,7 +41,7 @@ namespace client_app
 
         public async Task<string?> New_GetAICompletionResponseAsync(string prompt)
         {
-            if (!ServiceEnabled)
+            if (!ServiceRunning)
             {
                 Debug.WriteLine($"Error communicating with ChatGPT Completion API endpoint: AI service is not running.");
 
@@ -59,7 +59,7 @@ namespace client_app
                 };
                 var result = await _chatClient.CompleteChatAsync(new[] { new OpenAI.Chat.AssistantChatMessage(prompt) }, completionOptions, Program.ShutdownTokenSource.Token);
 
-                return result.Value.Content.ToString();
+                return result.Value.Content.FirstOrDefault()?.Text;
             }
             catch (Exception exc)
             {

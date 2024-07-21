@@ -11,5 +11,6 @@ namespace client_app
         where TConfig : class, new()
     {
         TConfig ServiceConfiguration { get; }
+        bool ServiceRunning { get; }
     }
 }
