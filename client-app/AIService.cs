@@ -41,8 +41,8 @@ namespace client_app
             );
 
             // To convert the JObject to a string if needed
-            string requestString = requestObject.ToString();
-            string requestUri = $"{_config.ChatGPTApiUrl}/chat/completions";
+            var requestString = requestObject.ToString();
+            var requestUri = $"{_config.ChatGPTApiUrl}/chat/completions";
 
             Debug.WriteLine($"AI prompt Completion API request payload: {requestString}");
 
@@ -54,13 +54,13 @@ namespace client_app
                 HttpResponseMessage response = await _httpClient.SendAsync(requestMessage);
                 if (response.IsSuccessStatusCode)
                 {
-                    string jsonResponse = await response.Content.ReadAsStringAsync();
+                    var jsonResponse = await response.Content.ReadAsStringAsync();
                     JObject responseObject = JObject.Parse(jsonResponse);
 
                     JArray? choices = responseObject["choices"] as JArray;
                     if (choices != null && choices.Count > 0)
                     {
-                        string? text = choices[0]?["message"]?["content"]?.ToString();
+                        var text = choices[0]?["message"]?["content"]?.ToString();
                         return text;
                     }
                     else
@@ -247,13 +247,17 @@ namespace client_app
             for (int i = 0; i < _config.ChatGPTRetryMaxAttempts; i++)
             {
                 JObject? responseObj = await GetAssistantAIRunState(runID);
-                string? runState = (string ?)responseObj?["status"];
+                string? runState = (string?)responseObj?["status"];
 
                 Debug.WriteLine($"Current run state: [{runState}]");
 
                 if (string.Equals("requires_action", runState, StringComparison.OrdinalIgnoreCase))
                 {
-                    foreach (var runStatePrintedLine in responseObj?.ToString(Formatting.Indented)?.Split('\n'))
+                    var runStatePrintedLines = responseObj?.ToString(Formatting.Indented)?.Split('\n');
+                    if (runStatePrintedLines == null)
+                        continue;
+
+                    foreach (var runStatePrintedLine in runStatePrintedLines)
                         Debug.WriteLine($"{runStatePrintedLine}");
 
                     string? requiredActionsStr = (await GetFunctionCallsFromRequiredActions(runID, responseObj))?.ToString(Formatting.None);
