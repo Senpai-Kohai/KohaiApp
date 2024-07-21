@@ -18,11 +18,12 @@ namespace client_app
         ///  The main entry point for the application.
         /// </summary>
         [STAThread]
-        static void Main(string[] args)
+        static void Main()
         {
             var builder = new ConfigurationBuilder()
+                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
                 .AddEnvironmentVariables()
-                .AddCommandLine(args);
+                .AddCommandLine(Environment.GetCommandLineArgs());
 
             Configuration = builder.Build();
 
