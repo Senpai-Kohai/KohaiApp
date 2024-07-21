@@ -18,5 +18,8 @@ namespace client_app
         public bool LoadLastProjectOnStartup { get; set; } = true;
         public string? ChatGPTApiKey { get; set; }
         public string? ChatGPTApiUrl { get; set; }
+        public string? ChatGPTAssistantAI { get; set; }
+        public int ChatGPTRetryMaxAttempts { get; set; } = 50;
+        public int ChatGPTRetryInterval { get; set; } = 200;
     }
 }
