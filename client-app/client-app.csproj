@@ -26,7 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Update="MainForm.Project.cs">
+    <Compile Update="Forms\MainForm.Project.cs">
       <SubType>Form</SubType>
     </Compile>
   </ItemGroup>

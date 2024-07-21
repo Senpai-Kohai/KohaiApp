@@ -4,6 +4,8 @@ using System.Configuration;
 using System.Diagnostics;
 using System.Net;
 using System.Reflection;
+using client_app.Attributes;
+using client_app.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,7 +16,20 @@ namespace client_app
         private static IConfiguration? Configuration { get; set; }
         private static ServiceProvider? ServiceProvider { get; set; }
 
-        public static CancellationTokenSource ShutdownTokenSource { get; private set; }
+
+        private static CancellationTokenSource? _shutdownTokenSource = null;
+        public static CancellationTokenSource ShutdownTokenSource
+        {
+            get
+            {
+                if (_shutdownTokenSource == null)
+                    _shutdownTokenSource = new CancellationTokenSource();
+
+                return _shutdownTokenSource;
+            }
+
+            private set { _shutdownTokenSource = value; }
+        }
 
         /// <summary>
         ///  The main entry point for the application.

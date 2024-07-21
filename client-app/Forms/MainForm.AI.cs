@@ -34,7 +34,7 @@ namespace client_app
             string requestText = aiRequestTextbox.Text;
             if (!string.IsNullOrWhiteSpace(requestText))
             {
-                string? responseText = await _aiService.New_GetAICompletionResponseAsync(requestText);
+                string? responseText = await _aiService.CompleteChatAsync(requestText);
                 aiResponseTextbox.Text = responseText;
             }
             else

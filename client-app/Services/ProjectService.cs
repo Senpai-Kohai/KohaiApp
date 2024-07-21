@@ -8,7 +8,7 @@ using System.Windows.Forms;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 
-namespace client_app
+namespace client_app.Services
 {
     public class ProjectService
     {
@@ -55,7 +55,7 @@ namespace client_app
 
             await Task.CompletedTask;
 
-            ProjectData newProject = new ProjectData()
+            var newProject = new ProjectData()
             {
                 DisplayName = name,
                 Author = author,
@@ -104,11 +104,11 @@ namespace client_app
                 if (projectData == null)
                     return false;
 
-                string projectPath = GetProjectPath(projectData.ID);
+                var projectPath = GetProjectPath(projectData.ID);
                 Directory.CreateDirectory(projectPath);
 
-                string projectFilePath = Path.Combine(projectPath, "project.json");
-                string json = JsonConvert.SerializeObject(projectData, Formatting.Indented);
+                var projectFilePath = Path.Combine(projectPath, "project.json");
+                var json = JsonConvert.SerializeObject(projectData, Formatting.Indented);
                 await File.WriteAllTextAsync(projectFilePath, json).ConfigureAwait(false);
 
                 return true;
@@ -127,16 +127,16 @@ namespace client_app
 
             try
             {
-                string projectPath = GetProjectPath(ID);
+                var projectPath = GetProjectPath(ID);
                 if (!Directory.Exists(projectPath))
                     return null;
 
-                string projectFilePath = Path.Combine(projectPath, "project.json");
+                var projectFilePath = Path.Combine(projectPath, "project.json");
                 if (!File.Exists(projectFilePath))
                     return null;
 
-                string json = await File.ReadAllTextAsync(projectFilePath).ConfigureAwait(false);
-                ProjectData? project = JsonConvert.DeserializeObject<ProjectData>(json);
+                var json = await File.ReadAllTextAsync(projectFilePath).ConfigureAwait(false);
+                var project = JsonConvert.DeserializeObject<ProjectData>(json);
 
                 if (project == null)
                     return null;
@@ -163,11 +163,11 @@ namespace client_app
                 // iterates all projects for one with a matching name, and loads if found
                 foreach (var directory in Directory.GetDirectories(_config.ProjectsDirectory))
                 {
-                    string projectFilePath = Path.Combine(directory, "project.json");
+                    var projectFilePath = Path.Combine(directory, "project.json");
                     if (File.Exists(projectFilePath))
                     {
-                        string json = await File.ReadAllTextAsync(projectFilePath).ConfigureAwait(false);
-                        ProjectData? project = JsonConvert.DeserializeObject<ProjectData>(json);
+                        var json = await File.ReadAllTextAsync(projectFilePath).ConfigureAwait(false);
+                        var project = JsonConvert.DeserializeObject<ProjectData>(json);
 
                         if (project?.DisplayName == null)
                             continue;
@@ -228,15 +228,15 @@ namespace client_app
 
                 if (File.Exists(_config.RecentProjectsFilename))
                 {
-                    string recentIDsString = File.ReadAllTextAsync(_config.RecentProjectsFilename).Result;
+                    var recentIDsString = File.ReadAllTextAsync(_config.RecentProjectsFilename).Result;
                     var recentIDs = JsonConvert.DeserializeObject<List<string>>(recentIDsString);
                     if (recentIDs != null)
                     {
                         foreach (var recentID in recentIDs)
                         {
-                            if (Guid.TryParse(recentID, out Guid projectID))
+                            if (Guid.TryParse(recentID, out var projectID))
                             {
-                                ProjectData? recentProject = LoadProjectAsync(projectID).Result;
+                                var recentProject = LoadProjectAsync(projectID).Result;
                                 if (recentProject != null)
                                 {
                                     _recentProjects.RemoveAll(_ => _.ID == projectID);
@@ -264,7 +264,7 @@ namespace client_app
             {
                 var recentProjectIDs = _recentProjects.Select(p => p.ID.ToString()).ToList();
 
-                string json = JsonConvert.SerializeObject(recentProjectIDs, Formatting.Indented);
+                var json = JsonConvert.SerializeObject(recentProjectIDs, Formatting.Indented);
                 File.WriteAllText(_config.RecentProjectsFilename, json);
             }
             catch (Exception exc)
@@ -292,8 +292,8 @@ namespace client_app
                 if (currentProject == null)
                     return false;
 
-                string projectPath = GetProjectPath(currentProject.ID);
-                string filePath = Path.Combine(projectPath, $"{key}.json");
+                var projectPath = GetProjectPath(currentProject.ID);
+                var filePath = Path.Combine(projectPath, $"{key}.json");
                 await File.WriteAllTextAsync(filePath, data).ConfigureAwait(false);
 
                 return true;
@@ -318,8 +318,8 @@ namespace client_app
                 if (currentProject == null)
                     return null;
 
-                string filePath = Path.Combine(GetProjectPath(currentProject.ID), $"{key}.json");
-                string stringContents = await File.ReadAllTextAsync(filePath);
+                var filePath = Path.Combine(GetProjectPath(currentProject.ID), $"{key}.json");
+                var stringContents = await File.ReadAllTextAsync(filePath);
 
                 return stringContents;
             }
@@ -345,7 +345,7 @@ namespace client_app
                 if (currentProject == null)
                     return false;
 
-                string filePath = Path.Combine(GetProjectPath(currentProject.ID), $"{key}.json");
+                var filePath = Path.Combine(GetProjectPath(currentProject.ID), $"{key}.json");
                 File.Delete(filePath);
 
                 return true;

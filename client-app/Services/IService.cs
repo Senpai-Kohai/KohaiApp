@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 
-namespace client_app
+namespace client_app.Services
 {
     public interface IService<TConfig>
         where TConfig : class, new()
