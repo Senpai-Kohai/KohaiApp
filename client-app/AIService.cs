@@ -6,6 +6,10 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using OpenAI.Assistants;
+using System.Linq;
+using System.ClientModel.Primitives;
+using OpenAI;
 
 namespace client_app
 {
@@ -15,19 +19,22 @@ namespace client_app
     public class AIService : ServiceBase<AIServiceConfiguration>
     {
         private OpenAI.Chat.ChatClient? _chatClient;
-#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-        private OpenAI.Assistants.AssistantClient? _assistantClient;
-#pragma warning restore OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
+        private AssistantClient? _assistantClient;
+#pragma warning restore OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
         private OpenAI.Files.FileClient? _fileClient;
 
-        private readonly OpenAI.OpenAIClient? _openAIClient;
+        private readonly ProjectService _projectService;
+        private readonly OpenAIClient? _openAIClient;
         private readonly HttpClient? _httpClient;
         private string? currentThreadID;
 
         public override bool ServiceRunning => _openAIClient != null && _httpClient != null;
 
-        public AIService(HttpClient httpClient)
+        public AIService(HttpClient httpClient, ProjectService projectService)
         {
+            _projectService = projectService;
+
             if (ServiceConfiguration.ChatGPTApiKey == null)
             {
                 Debug.WriteLine($"Error starting AI service: API key not configured.");
@@ -36,28 +43,31 @@ namespace client_app
             }
 
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-            _openAIClient = new OpenAI.OpenAIClient(ServiceConfiguration.ChatGPTApiKey);
+            _openAIClient = new OpenAIClient(ServiceConfiguration.ChatGPTApiKey);
         }
 
-        public async Task<string?> New_GetAICompletionResponseAsync(string prompt)
+        public string? CompleteChat(string message, string? user = null, string? model = null)
+            => CompleteChatAsync(message, user, model).Result;
+
+        public async Task<string?> CompleteChatAsync(string message, string? user = "user", string? model = "gpt-40")
         {
             if (!ServiceRunning)
             {
-                Debug.WriteLine($"Error communicating with ChatGPT Completion API endpoint: AI service is not running.");
+                Debug.WriteLine($"Error communicating with ChatGPT API: AI service is not running.");
 
                 return null;
             }
 
             if (_chatClient == null)
-                _chatClient = _openAIClient?.GetChatClient("gpt-4o") ?? throw new NullReferenceException("Chat client is null");
+                _chatClient = _openAIClient?.GetChatClient(model) ?? throw new NullReferenceException("Chat client is null");
 
             try
             {
-                var completionOptions = new OpenAI.Chat.ChatCompletionOptions()
+                var apiOptions = new OpenAI.Chat.ChatCompletionOptions()
                 {
-                    User = "user"
+                    User = user ?? "user"
                 };
-                var result = await _chatClient.CompleteChatAsync(new[] { new OpenAI.Chat.AssistantChatMessage(prompt) }, completionOptions, Program.ShutdownTokenSource.Token);
+                var result = await _chatClient.CompleteChatAsync(new[] { new OpenAI.Chat.AssistantChatMessage(message) }, apiOptions, Program.ShutdownTokenSource.Token);
 
                 return result.Value.Content.FirstOrDefault()?.Text;
             }
@@ -69,62 +79,313 @@ namespace client_app
             }
         }
 
-        public async Task<string?> GetAICompletionResponseAsync(string prompt)
+        public async Task<string?> GetAssistantAsync(string? name = "Kohai")
         {
-            if (string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiKey) || string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiUrl))
+            if (!ServiceRunning)
             {
-                Debug.WriteLine($"Error communicating with ChatGPT Completion API endpoint: API key or url not configured.");
+                Debug.WriteLine($"Error communicating with ChatGPT API: AI service is not running.");
 
                 return null;
             }
 
-            var requestObject = new JObject(
-                new JProperty("model", "gpt-4o"),
-                new JProperty("messages", new JArray(
-                    new JObject(
-                        new JProperty("role", "user"),
-                        new JProperty("content", prompt)
-                    )
-                ))
-            );
+#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
+            _assistantClient ??= _openAIClient?.GetAssistantClient() ?? throw new NullReferenceException("Chat client is null");
+#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
 
-            // To convert the JObject to a string if needed
-            var requestString = requestObject.ToString();
-            var requestUri = $"{ServiceConfiguration.ChatGPTApiUrl}/chat/completions";
-
-            Debug.WriteLine($"AI prompt Completion API request payload: {requestString}");
-
-            using (var requestMessage = new HttpRequestMessage(HttpMethod.Post, requestUri))
+            try
             {
-                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ServiceConfiguration.ChatGPTApiKey);
-                requestMessage.Content = new StringContent(requestString, Encoding.UTF8, "application/json");
-
-                HttpResponseMessage response = await _httpClient.SendAsync(requestMessage);
-                if (response.IsSuccessStatusCode)
+                var apiOptions = new RequestOptions()
                 {
-                    var jsonResponse = await response.Content.ReadAsStringAsync();
-                    JObject responseObject = JObject.Parse(jsonResponse);
+                    CancellationToken = Program.ShutdownTokenSource.Token
+                };
+                var result = await _assistantClient.GetAssistantAsync(name, apiOptions);
 
-                    JArray? choices = responseObject["choices"] as JArray;
-                    if (choices != null && choices.Count > 0)
-                    {
-                        var text = choices[0]?["message"]?["content"]?.ToString();
-                        return text;
-                    }
-                    else
-                    {
-                        return "No choices found in response.";
-                    }
-                }
-                else
+                try
                 {
-                    Debug.WriteLine($"Error communicating with ChatGPT API endpoint at {requestUri}. Reason: {response.ReasonPhrase}");
+                    var resultStr = result.GetRawResponse()?.Content?.ToString();
+                    if (!string.IsNullOrWhiteSpace(resultStr))
+                    {
+                        var resultObj = JObject.Parse(resultStr);
+                        return (string?)resultObj["id"];
+                    }
 
-                    return $"Error: {response.ReasonPhrase}";
+                    Debug.WriteLine($"Failed to determine Assistant ID from API response. Response: {resultStr}");
                 }
+                catch (Exception exc)
+                {
+                    Debug.WriteLine($"Error parsing GetAssistant response as JSON: {exc}");
+                }
+
+                return null;
+            }
+            catch (Exception exc)
+            {
+                Debug.WriteLine($"Error communicating with ChatGPT completion API endpoint. Exception: {exc}");
+
+                return $"Error: {exc}";
             }
         }
 
+        public async Task<string?> CreateAssistantAsync(string? name = "Kohai", string? model = "gpt-40")
+        {
+            if (!ServiceRunning)
+            {
+                Debug.WriteLine($"Error communicating with ChatGPT API: AI service is not running.");
+
+                return null;
+            }
+
+#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
+            _assistantClient ??= _openAIClient?.GetAssistantClient() ?? throw new NullReferenceException("Chat client is null");
+#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
+
+            try
+            {
+                var apiOptions = new AssistantCreationOptions()
+                {
+                    Name = name
+                };
+                var result = await _assistantClient.CreateAssistantAsync(model, apiOptions, Program.ShutdownTokenSource.Token);
+
+                return result.Value.Id;
+            }
+            catch (Exception exc)
+            {
+                Debug.WriteLine($"Error communicating with ChatGPT completion API endpoint. Exception: {exc}");
+
+                return $"Error: {exc}";
+            }
+        }
+
+        public async Task<string?> GetCurrentThreadIDAsync(bool loadMostRecent = false)
+        {
+            await Task.CompletedTask;
+
+            if (!string.IsNullOrWhiteSpace(currentThreadID))
+                return currentThreadID;
+
+            if (loadMostRecent)
+            {
+                var projectThreadID = _projectService.GetCurrentProject()?.ThreadID;
+                if (!string.IsNullOrWhiteSpace(projectThreadID))
+                    currentThreadID = projectThreadID;
+            }
+
+            return currentThreadID;
+        }
+
+        public async Task<string?> GetAssistantThreadAsync(string threadID)
+        {
+            if (!ServiceRunning)
+            {
+                Debug.WriteLine($"Error communicating with ChatGPT API: AI service is not running.");
+
+                return null;
+            }
+
+#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
+            _assistantClient ??= _openAIClient?.GetAssistantClient() ?? throw new NullReferenceException("Chat client is null");
+#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
+
+            try
+            {
+                var result = await _assistantClient.GetThreadAsync(threadID, Program.ShutdownTokenSource.Token);
+                if (result?.Value?.Id == null)
+                    return null;
+
+                currentThreadID = result.Value.Id;
+
+                return currentThreadID;
+            }
+            catch (Exception exc)
+            {
+                Debug.WriteLine($"Error communicating with ChatGPT completion API endpoint. Exception: {exc}");
+
+                return $"Error: {exc}";
+            }
+        }
+
+        public async Task<string?> CreateAssistantThreadAsync()
+        {
+            if (!ServiceRunning)
+            {
+                Debug.WriteLine($"Error communicating with ChatGPT API: AI service is not running.");
+
+                return null;
+            }
+
+#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
+            _assistantClient ??= _openAIClient?.GetAssistantClient() ?? throw new NullReferenceException("Chat client is null");
+#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
+
+            try
+            {
+                var apiOptions = new ThreadCreationOptions()
+                {
+                };
+                // just for debugging purposes
+                apiOptions.Metadata["owner"] = "Kohai";
+
+                var result = await _assistantClient.CreateThreadAsync(apiOptions, Program.ShutdownTokenSource.Token);
+
+                currentThreadID = result.Value.Id;
+
+                return currentThreadID;
+            }
+            catch (Exception exc)
+            {
+                Debug.WriteLine($"Error communicating with ChatGPT completion API endpoint. Exception: {exc}");
+
+                return $"Error: {exc}";
+            }
+        }
+
+        /// <summary>
+        /// Deletes an existant Assistant Thread.
+        /// </summary>
+        /// <param name="threadID">The ID of the thread to delete.</param>
+        /// <returns>Whether the thread was successfully deleted.</returns>
+        public async Task<bool> DeleteAssistantThreadAsync(string threadID)
+        {
+            if (!ServiceRunning)
+            {
+                Debug.WriteLine($"Error communicating with ChatGPT API: AI service is not running.");
+
+                return false;
+            }
+
+#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
+            _assistantClient ??= _openAIClient?.GetAssistantClient() ?? throw new NullReferenceException("Chat client is null");
+#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
+
+            try
+            {
+                var result = await _assistantClient.DeleteThreadAsync(threadID, Program.ShutdownTokenSource.Token);
+
+                return true;
+            }
+            catch (Exception exc)
+            {
+                Debug.WriteLine($"Error communicating with ChatGPT completion API endpoint. Exception: {exc}");
+
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Publishes one or more messages to the assistant thread.
+        /// </summary>
+        /// <param name="messages">The messages to publish.</param>
+        /// <param name="role">The role of the messages (assistant or user).</param>
+        /// <returns>Whether the messages were successfully published to the assistant thread.</returns>
+        /// <exception cref="NullReferenceException"></exception>
+        public async Task<bool> CreateAssistantMessageAsync(IEnumerable<string> messages, MessageRole role = MessageRole.User)
+        {
+            if (!ServiceRunning)
+            {
+                Debug.WriteLine($"Error communicating with ChatGPT API: AI service is not running.");
+
+                return false;
+            }
+
+#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
+            _assistantClient ??= _openAIClient?.GetAssistantClient() ?? throw new NullReferenceException("Chat client is null");
+#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
+
+            if (string.IsNullOrWhiteSpace(currentThreadID))
+            {
+                Debug.WriteLine($"Error communicating with ChatGPT API: current thread not set.");
+
+                return false;
+            }
+
+            return await CreateAssistantMessageAsync(currentThreadID, messages, role);
+        }
+
+        /// <summary>
+        /// Publishes one or more messages to the assistant thread.
+        /// </summary>
+        /// <param name="threadID">The thread ID to publish the messages under.</param>
+        /// <param name="messages">The messages to publish.</param>
+        /// <param name="role">The role of the messages (assistant or user).</param>
+        /// <returns>Whether the messages were successfully published to the assistant thread.</returns>
+        /// <exception cref="NullReferenceException"></exception>
+        public async Task<bool> CreateAssistantMessageAsync(string threadID, IEnumerable<string> messages, MessageRole role = MessageRole.User)
+        {
+            if (!ServiceRunning)
+            {
+                Debug.WriteLine($"Error communicating with ChatGPT API: AI service is not running.");
+
+                return false;
+            }
+
+#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
+            _assistantClient ??= _openAIClient?.GetAssistantClient() ?? throw new NullReferenceException("Chat client is null");
+#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
+
+            try
+            {
+                var messageContents = new List<MessageContent>();
+                foreach (var message in messages)
+                    messageContents.Add(MessageContent.FromText(message));
+
+                var apiOptions = new MessageCreationOptions()
+                {
+                };
+                // just for debugging purposes
+                apiOptions.Metadata["owner"] = "kohai";
+
+                var result = await _assistantClient.CreateMessageAsync(threadID, role, messageContents, apiOptions, Program.ShutdownTokenSource.Token);
+
+                return true;
+            }
+            catch (Exception exc)
+            {
+                Debug.WriteLine($"Error communicating with ChatGPT completion API endpoint. Exception: {exc}");
+
+                return false;
+            }
+        }
+
+        public async Task<IEnumerable<string>?> GetAssistantMessagesAsync(string threadID, ListOrder? listOrder)
+        {
+            if (!ServiceRunning)
+            {
+                Debug.WriteLine($"Error communicating with ChatGPT API: AI service is not running.");
+
+                return null;
+            }
+
+#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
+            _assistantClient ??= _openAIClient?.GetAssistantClient() ?? throw new NullReferenceException("Chat client is null");
+#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
+
+            try
+            {
+                var results = _assistantClient.GetMessagesAsync(threadID, listOrder, Program.ShutdownTokenSource.Token);
+
+                var messages = new List<string>();
+
+                await foreach (var result in results)
+                {
+                    var newMessage = result?.Content?.FirstOrDefault()?.Text;
+
+                    if (!string.IsNullOrWhiteSpace(newMessage))
+                        messages.Add(newMessage);
+                }
+
+                return messages;
+            }
+            catch (Exception exc)
+            {
+                Debug.WriteLine($"Error communicating with ChatGPT completion API endpoint. Exception: {exc}");
+
+                return null;
+            }
+        }
+
+
+        // OLD NON-SDK METHODS
         public async Task<string?> GetAIAssistantResponseAsync(string prompt)
         {
             if (string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiKey) || string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiUrl))

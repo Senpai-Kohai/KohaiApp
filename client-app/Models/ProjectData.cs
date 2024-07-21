@@ -18,6 +18,9 @@ namespace client_app
         [JsonProperty("description")]
         public string? Description { get; set; }
 
+        [JsonProperty("thread_id")]
+        public string? ThreadID { get; set; }
+
         [JsonProperty("created_at")]
         public DateTime? CreatedAt { get; set; }
 
