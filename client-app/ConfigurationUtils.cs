@@ -64,7 +64,7 @@ namespace client_app
         /// <typeparam name="T">CLR type for returned configuration object.</typeparam>
         /// <param name="sectionName">Optional configuration section name.</param>
         /// <returns></returns>
-        public static T LoadConfiguration<T>(string? sectionName) where T : new()
+        public static T LoadConfiguration<T>(string? sectionName = null) where T : new()
         {
             var configInstance = new T();
 

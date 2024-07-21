@@ -9,21 +9,22 @@ using Newtonsoft.Json.Linq;
 
 namespace client_app
 {
-    public class AIService
+    /// <summary>
+    /// Responsible for wrapping the OpenAI SDK / client.
+    /// </summary>
+    public class AIService : ServiceBase<AIServiceConfiguration>
     {
         private readonly HttpClient _httpClient;
-        private AppConfiguration _config;
         private string? currentThreadID;
 
-        public AIService(HttpClient httpClient, AppConfiguration config)
+        public AIService(HttpClient httpClient)
         {
-            _config = config;
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         }
 
         public async Task<string?> GetAICompletionResponseAsync(string prompt)
         {
-            if (string.IsNullOrWhiteSpace(_config.ChatGPTApiKey) || string.IsNullOrWhiteSpace(_config.ChatGPTApiUrl))
+            if (string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiKey) || string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiUrl))
             {
                 Debug.WriteLine($"Error communicating with ChatGPT Completion API endpoint: API key or url not configured.");
 
@@ -42,13 +43,13 @@ namespace client_app
 
             // To convert the JObject to a string if needed
             var requestString = requestObject.ToString();
-            var requestUri = $"{_config.ChatGPTApiUrl}/chat/completions";
+            var requestUri = $"{ServiceConfiguration.ChatGPTApiUrl}/chat/completions";
 
             Debug.WriteLine($"AI prompt Completion API request payload: {requestString}");
 
             using (var requestMessage = new HttpRequestMessage(HttpMethod.Post, requestUri))
             {
-                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _config.ChatGPTApiKey);
+                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ServiceConfiguration.ChatGPTApiKey);
                 requestMessage.Content = new StringContent(requestString, Encoding.UTF8, "application/json");
 
                 HttpResponseMessage response = await _httpClient.SendAsync(requestMessage);
@@ -79,7 +80,7 @@ namespace client_app
 
         public async Task<string?> GetAIAssistantResponseAsync(string prompt)
         {
-            if (string.IsNullOrWhiteSpace(_config.ChatGPTApiKey) || string.IsNullOrWhiteSpace(_config.ChatGPTApiUrl))
+            if (string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiKey) || string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiUrl))
             {
                 Debug.WriteLine($"Error communicating with ChatGPT Assistant API endpoint: API key or url not configured.");
 
@@ -133,20 +134,20 @@ namespace client_app
 
         private async Task<string?> RetrieveAssistantAIGuid()
         {
-            if (string.IsNullOrWhiteSpace(_config.ChatGPTApiKey) || string.IsNullOrWhiteSpace(_config.ChatGPTApiUrl))
+            if (string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiKey) || string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiUrl))
             {
                 Debug.WriteLine($"Error communicating with ChatGPT Retrieve Assistant ID API endpoint: API key or url not configured.");
 
                 return null;
             }
 
-            string requestUri = $"{_config.ChatGPTApiUrl}/assistants";
+            string requestUri = $"{ServiceConfiguration.ChatGPTApiUrl}/assistants";
 
             Debug.WriteLine($"AI prompt Retrieve Assistant ID API request (no payload)");
 
             using (var requestMessage = new HttpRequestMessage(HttpMethod.Get, requestUri))
             {
-                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _config.ChatGPTApiKey);
+                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ServiceConfiguration.ChatGPTApiKey);
                 requestMessage.Headers.Add("OpenAI-Beta", "assistants=v2");
 
                 HttpResponseMessage response = await _httpClient.SendAsync(requestMessage);
@@ -177,14 +178,14 @@ namespace client_app
                 return null;
             }
 
-            if (string.IsNullOrWhiteSpace(_config.ChatGPTApiKey) || string.IsNullOrWhiteSpace(_config.ChatGPTApiUrl))
+            if (string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiKey) || string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiUrl))
             {
                 Debug.WriteLine($"Error communicating with ChatGPT Run Thread Assistant API endpoint: API key or url not configured.");
 
                 return null;
             }
 
-            string? assistantID = _config.ChatGPTAssistantAI ?? await RetrieveAssistantAIGuid();
+            string? assistantID = ServiceConfiguration.ChatGPTAssistantAI ?? await RetrieveAssistantAIGuid();
             if (string.IsNullOrWhiteSpace(assistantID))
             {
                 Debug.WriteLine($"Could not determine Assistant AI identifier to use, either from ENV or retrieved via API request.");
@@ -197,13 +198,13 @@ namespace client_app
             );
 
             string requestString = requestObject.ToString();
-            string requestUri = $"{_config.ChatGPTApiUrl}/threads/{currentThreadID}/runs";
+            string requestUri = $"{ServiceConfiguration.ChatGPTApiUrl}/threads/{currentThreadID}/runs";
 
             Debug.WriteLine($"AI prompt Run Thread Assistant API request (no payload)");
 
             using (var requestMessage = new HttpRequestMessage(HttpMethod.Post, requestUri))
             {
-                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _config.ChatGPTApiKey);
+                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ServiceConfiguration.ChatGPTApiKey);
                 requestMessage.Headers.Add("OpenAI-Beta", "assistants=v2");
                 requestMessage.Content = new StringContent(requestString, Encoding.UTF8, "application/json");
 
@@ -241,10 +242,10 @@ namespace client_app
                 return null;
             }
 
-            TimeSpan attemptInterval = TimeSpan.FromMilliseconds(_config.ChatGPTRetryInterval);
+            TimeSpan attemptInterval = TimeSpan.FromMilliseconds(ServiceConfiguration.ChatGPTRetryInterval);
             bool success = false;
 
-            for (int i = 0; i < _config.ChatGPTRetryMaxAttempts; i++)
+            for (int i = 0; i < ServiceConfiguration.ChatGPTRetryMaxAttempts; i++)
             {
                 JObject? responseObj = await GetAssistantAIRunState(runID);
                 string? runState = (string?)responseObj?["status"];
@@ -284,7 +285,7 @@ namespace client_app
 
         private async Task<JArray?> GetFunctionCallsFromRequiredActions(string runID, JObject responseObject)
         {
-            if (string.IsNullOrWhiteSpace(_config.ChatGPTApiKey) || string.IsNullOrWhiteSpace(_config.ChatGPTApiUrl))
+            if (string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiKey) || string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiUrl))
             {
                 Debug.WriteLine($"Error communicating with ChatGPT Run Thread Assistant API endpoint: API key or url not configured.");
 
@@ -324,7 +325,7 @@ namespace client_app
             if (confirmToolOutputs.Count == 0)
                 return null;
 
-            string submitUri = $"{_config.ChatGPTApiUrl}/threads/{currentThreadID}/runs/{runID}/submit_tool_outputs";
+            string submitUri = $"{ServiceConfiguration.ChatGPTApiUrl}/threads/{currentThreadID}/runs/{runID}/submit_tool_outputs";
             using (var requestMessage = new HttpRequestMessage(HttpMethod.Post, submitUri))
             {
                 JObject messagePayload = new JObject()
@@ -332,7 +333,7 @@ namespace client_app
                     ["tool_outputs"] = confirmToolOutputs
                 };
 
-                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _config.ChatGPTApiKey);
+                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ServiceConfiguration.ChatGPTApiKey);
                 requestMessage.Headers.Add("OpenAI-Beta", "assistants=v2");
                 requestMessage.Content = new StringContent(messagePayload.ToString(), Encoding.UTF8, "application/json");
 
@@ -360,13 +361,13 @@ namespace client_app
                 return null;
             }
 
-            string requestUri = $"{_config.ChatGPTApiUrl}/threads/{currentThreadID}/messages";
+            string requestUri = $"{ServiceConfiguration.ChatGPTApiUrl}/threads/{currentThreadID}/messages";
 
             Debug.WriteLine($"AI prompt Get Last Message Assistant API request (no payload)");
 
             using (var requestMessage = new HttpRequestMessage(HttpMethod.Get, requestUri))
             {
-                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _config.ChatGPTApiKey);
+                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ServiceConfiguration.ChatGPTApiKey);
                 requestMessage.Headers.Add("OpenAI-Beta", "assistants=v2");
 
                 HttpResponseMessage response = await _httpClient.SendAsync(requestMessage);
@@ -409,20 +410,20 @@ namespace client_app
                 return null;
             }
 
-            if (string.IsNullOrWhiteSpace(_config.ChatGPTApiKey) || string.IsNullOrWhiteSpace(_config.ChatGPTApiUrl))
+            if (string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiKey) || string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiUrl))
             {
                 Debug.WriteLine($"Error communicating with ChatGPT Get Run State Assistant API endpoint: API key or url not configured.");
 
                 return null;
             }
 
-            string requestUri = $"{_config.ChatGPTApiUrl}/threads/{currentThreadID}/runs/{runID}";
+            string requestUri = $"{ServiceConfiguration.ChatGPTApiUrl}/threads/{currentThreadID}/runs/{runID}";
 
             Debug.WriteLine($"Polling for Assistant AI thread run completion...");
 
             using (var requestMessage = new HttpRequestMessage(HttpMethod.Get, requestUri))
             {
-                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _config.ChatGPTApiKey);
+                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ServiceConfiguration.ChatGPTApiKey);
                 requestMessage.Headers.Add("OpenAI-Beta", "assistants=v2");
 
                 HttpResponseMessage response = await _httpClient.SendAsync(requestMessage);
@@ -444,7 +445,7 @@ namespace client_app
 
         private async Task<bool> AddMessageToThread(string message)
         {
-            if (string.IsNullOrWhiteSpace(_config.ChatGPTApiKey) || string.IsNullOrWhiteSpace(_config.ChatGPTApiUrl))
+            if (string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiKey) || string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiUrl))
             {
                 Debug.WriteLine($"Error communicating with ChatGPT Add Message Assistant API endpoint: API key or url not configured.");
 
@@ -458,13 +459,13 @@ namespace client_app
 
             // To convert the JObject to a string if needed
             string requestString = requestObject.ToString();
-            string requestUri = $"{_config.ChatGPTApiUrl}/threads/{currentThreadID}/messages";
+            string requestUri = $"{ServiceConfiguration.ChatGPTApiUrl}/threads/{currentThreadID}/messages";
 
             Debug.WriteLine($"AI prompt Add Message Assistant API request payload: {requestString}");
 
             using (var requestMessage = new HttpRequestMessage(HttpMethod.Post, requestUri))
             {
-                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _config.ChatGPTApiKey);
+                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ServiceConfiguration.ChatGPTApiKey);
                 requestMessage.Headers.Add("OpenAI-Beta", "assistants=v2");
                 requestMessage.Content = new StringContent(requestString, Encoding.UTF8, "application/json");
 
@@ -484,20 +485,20 @@ namespace client_app
 
         private async Task<bool> CreateNewThread()
         {
-            if (string.IsNullOrWhiteSpace(_config.ChatGPTApiKey) || string.IsNullOrWhiteSpace(_config.ChatGPTApiUrl))
+            if (string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiKey) || string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiUrl))
             {
                 Debug.WriteLine($"Error communicating with ChatGPT Create Thread Assistant API endpoint: API key or url not configured.");
 
                 return false;
             }
 
-            string requestUri = $"{_config.ChatGPTApiUrl}/threads";
+            string requestUri = $"{ServiceConfiguration.ChatGPTApiUrl}/threads";
 
             Debug.WriteLine($"AI prompt Create Thread Assistant API request (no payload)");
 
             using (var requestMessage = new HttpRequestMessage(HttpMethod.Post, requestUri))
             {
-                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _config.ChatGPTApiKey);
+                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ServiceConfiguration.ChatGPTApiKey);
                 requestMessage.Headers.Add("OpenAI-Beta", "assistants=v2");
                 //requestMessage.Headers.Add("Content-Type", "application/json");
                 requestMessage.Content = new StringContent("{}", Encoding.UTF8, "application/json");
@@ -523,7 +524,7 @@ namespace client_app
                 }
                 else
                 {
-                    Debug.WriteLine($"Error communicating with ChatGPT Create Thread Assistant API endpoint at {_config.ChatGPTApiUrl}. Reason: {response.ReasonPhrase}");
+                    Debug.WriteLine($"Error communicating with ChatGPT Create Thread Assistant API endpoint at {ServiceConfiguration.ChatGPTApiUrl}. Reason: {response.ReasonPhrase}");
                 }
 
                 return false;

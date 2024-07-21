@@ -6,7 +6,12 @@ using System.Threading.Tasks;
 
 namespace client_app
 {
-    public class AIServiceConfiguration : IServiceConfiguration
+    /// <summary>
+    /// Configuration for the AI Service.
+    /// </summary>
+    [SectionName("AI")]
+    public class AIServiceConfiguration : AppConfiguration
     {
+
     }
 }

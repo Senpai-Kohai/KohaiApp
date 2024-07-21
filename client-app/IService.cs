@@ -7,7 +7,8 @@ using Microsoft.Extensions.Configuration;
 
 namespace client_app
 {
-    public interface IService<TConfig> where TConfig : new()
+    public interface IService<TConfig>
+        where TConfig : class, new()
     {
         TConfig ServiceConfiguration { get; }
     }
