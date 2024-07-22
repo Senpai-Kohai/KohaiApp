@@ -95,7 +95,7 @@ namespace client_app.Services
             {
                 Debug.WriteLine($"Error communicating with ChatGPT completion API endpoint. Exception: {exc}");
 
-                return $"Error: {exc}";
+                return null;
             }
         }
 
@@ -159,7 +159,7 @@ namespace client_app.Services
             {
                 Debug.WriteLine($"Error communicating with ChatGPT completion API endpoint. Exception: {exc}");
 
-                return $"Error: {exc}";
+                return null;
             }
         }
 
@@ -195,13 +195,20 @@ namespace client_app.Services
                 var result = await _assistantClient.CreateAssistantAsync(model, apiOptions, Program.ShutdownTokenSource.Token);
                 var newAssistantID = result.Value.Id;
 
+                if (!string.IsNullOrWhiteSpace(newAssistantID))
+                {
+                    _currentAssistantID = newAssistantID;
+                    _currentAssistantName = name;
+                }
+
+
                 return newAssistantID;
             }
             catch (Exception exc)
             {
                 Debug.WriteLine($"Error communicating with ChatGPT completion API endpoint. Exception: {exc}");
 
-                return $"Error: {exc}";
+                return null;
             }
         }
 
@@ -263,7 +270,7 @@ namespace client_app.Services
             {
                 Debug.WriteLine($"Error communicating with ChatGPT completion API endpoint. Exception: {exc}");
 
-                return $"Error: {exc}";
+                return null;
             }
         }
 
@@ -343,6 +350,17 @@ namespace client_app.Services
         /// Publishes one or more messages to the assistant thread.
         /// </summary>
         /// <param name="threadID">The thread ID to publish the messages under.</param>
+        /// <param name="message">The message to publish.</param>
+        /// <param name="role">The role of the messages (assistant or user).</param>
+        /// <returns>Whether the messages were successfully published to the assistant thread.</returns>
+        /// <exception cref="NullReferenceException"></exception>
+        public async Task<bool> CreateAssistantMessageAsync(string threadID, string message, MessageRole role = MessageRole.User)
+            => await CreateAssistantMessageAsync(threadID, new[] { message }, role);
+
+        /// <summary>
+        /// Publishes one or more messages to the assistant thread.
+        /// </summary>
+        /// <param name="threadID">The thread ID to publish the messages under.</param>
         /// <param name="messages">The messages to publish.</param>
         /// <param name="role">The role of the messages (assistant or user).</param>
         /// <returns>Whether the messages were successfully published to the assistant thread.</returns>
@@ -391,17 +409,51 @@ namespace client_app.Services
         /// <returns>The assistant AI response.</returns>
         public async Task<string?> CreateAssistantMessageAndRunAsync(string message, MessageRole role = MessageRole.User)
         {
-            if (!await CreateAssistantMessageAsync(message, role))
+            var assistantID = await GetAssistantAsync() ?? await CreateAssistantAsync();
+            if (string.IsNullOrWhiteSpace(assistantID))
+            {
+                Debug.WriteLine($"Error: failed to get or create assistant.");
+
                 return null;
+            }
+
+            var threadID = await GetCurrentThreadIDAsync(loadMostRecent: true) ?? await CreateAssistantThreadAsync();
+            if (string.IsNullOrWhiteSpace(threadID))
+            {
+                Debug.WriteLine($"Error: failed to get or create thread for assistant with ID [{assistantID}].");
+
+                return null;
+            }
+
+            if (!await CreateAssistantMessageAsync(threadID, message, role))
+            {
+                Debug.WriteLine($"Error: failed to publish message to assistant thread with ID [{threadID}].");
+
+                return null;
+            }
 
             var runID = await RunAssistantThreadAsync();
             if (string.IsNullOrWhiteSpace(runID))
+            {
+                Debug.WriteLine($"Error: null run ID from attempt to run assistant thread with ID [{threadID}].");
+
                 return null;
+            }
 
             if (!await PollAssistantThreadUntilCompletedAsync(runID))
-                return null;
+            {
+                Debug.WriteLine($"Error: Assistant thread run with id [{runID}] did not complete within the expiration time.");
 
-            return await GetLastAssistantMessageAsync();
+                return null;
+            }
+
+            var lastMessage = await GetLastAssistantMessageAsync();
+            if (string.IsNullOrWhiteSpace(lastMessage))
+            {
+                Debug.WriteLine($"Error: failed to get last assistant thread message for run with ID [{runID}].");
+            }
+
+            return lastMessage;
         }
 
         /// <summary>
