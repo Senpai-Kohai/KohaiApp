@@ -51,7 +51,7 @@ namespace client_app
             string requestText = aiRequestTextbox.Text;
             if (!string.IsNullOrWhiteSpace(requestText))
             {
-                string? responseText = await _aiService.GetAIAssistantResponseAsync(requestText);
+                string? responseText = await _aiService.CreateAssistantMessageAndRunAsync(requestText);
                 aiResponseTextbox.Text = responseText;
             }
             else
