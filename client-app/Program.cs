@@ -1,11 +1,13 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using System;
+﻿using System;
 using System.CodeDom;
 using System.Configuration;
 using System.Diagnostics;
 using System.Net;
 using System.Reflection;
+using client_app.Attributes;
+using client_app.Services;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace client_app
 {
@@ -14,15 +16,33 @@ namespace client_app
         private static IConfiguration? Configuration { get; set; }
         private static ServiceProvider? ServiceProvider { get; set; }
 
+
+        private static CancellationTokenSource? _shutdownTokenSource = null;
+        public static CancellationTokenSource ShutdownTokenSource
+        {
+            get
+            {
+                if (_shutdownTokenSource == null)
+                    _shutdownTokenSource = new CancellationTokenSource();
+
+                return _shutdownTokenSource;
+            }
+
+            private set { _shutdownTokenSource = value; }
+        }
+
         /// <summary>
         ///  The main entry point for the application.
         /// </summary>
         [STAThread]
-        static void Main(string[] args)
+        static void Main()
         {
+            ShutdownTokenSource = new CancellationTokenSource();
+
             var builder = new ConfigurationBuilder()
+                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
                 .AddEnvironmentVariables()
-                .AddCommandLine(args);
+                .AddCommandLine(Environment.GetCommandLineArgs());
 
             Configuration = builder.Build();
 
@@ -43,6 +63,13 @@ namespace client_app
 
             // Start the main form of the application
             Application.Run(ServiceProvider.GetRequiredService<MainForm>());
+
+            ShutdownTokenSource.Cancel();
+        }
+
+        public static void InitiateShutdown()
+        {
+            ShutdownTokenSource.Cancel();
         }
 
         private static void ConfigureServices(ServiceCollection services)

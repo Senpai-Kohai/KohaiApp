@@ -1,10 +1,10 @@
-﻿using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 
 namespace client_app
 {
@@ -34,7 +34,7 @@ namespace client_app
             string requestText = aiRequestTextbox.Text;
             if (!string.IsNullOrWhiteSpace(requestText))
             {
-                string? responseText = await _aiService.GetAICompletionResponseAsync(requestText);
+                string? responseText = await _aiService.CompleteChatAsync(requestText);
                 aiResponseTextbox.Text = responseText;
             }
             else
@@ -51,7 +51,7 @@ namespace client_app
             string requestText = aiRequestTextbox.Text;
             if (!string.IsNullOrWhiteSpace(requestText))
             {
-                string? responseText = await _aiService.GetAIAssistantResponseAsync(requestText);
+                string? responseText = await _aiService.CreateAssistantMessageAndRunAsync(requestText);
                 aiResponseTextbox.Text = responseText;
             }
             else

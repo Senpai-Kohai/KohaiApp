@@ -1,11 +1,11 @@
-﻿using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Newtonsoft.Json;
 
 namespace client_app
 {
@@ -26,7 +26,7 @@ namespace client_app
                     Tag = project.ID
                 };
 
-                projectMenuItem.Click += async (sender, e) => 
+                projectMenuItem.Click += async (sender, e) =>
                 {
                     Guid? projectID = (Guid?)((ToolStripMenuItem?)sender)?.Tag;
                     if (projectID == null)
