@@ -272,7 +272,7 @@ namespace client_app
             aiSendButton.TabIndex = 4;
             aiSendButton.Text = "Send";
             aiSendButton.UseVisualStyleBackColor = false;
-            aiSendButton.Click += aiSendButton_Click;
+            aiSendButton.Click += AISendButton_Click;
             // 
             // taskListTab
             // 
@@ -308,7 +308,7 @@ namespace client_app
             taskAddButton.TabIndex = 1;
             taskAddButton.Text = "Add";
             taskAddButton.UseVisualStyleBackColor = true;
-            taskAddButton.Click += taskAddButton_Click;
+            taskAddButton.Click += TaskAddButton_Click;
             // 
             // taskEditButton
             // 
@@ -319,7 +319,7 @@ namespace client_app
             taskEditButton.TabIndex = 5;
             taskEditButton.Text = "Edit";
             taskEditButton.UseVisualStyleBackColor = true;
-            taskEditButton.Click += taskEditButton_Click;
+            taskEditButton.Click += TaskEditButton_Click;
             // 
             // tasksListBox
             // 
@@ -341,7 +341,7 @@ namespace client_app
             taskRemoveButton.TabIndex = 3;
             taskRemoveButton.Text = "Remove";
             taskRemoveButton.UseVisualStyleBackColor = true;
-            taskRemoveButton.Click += taskRemoveButton_Click;
+            taskRemoveButton.Click += TaskRemoveButton_Click;
             // 
             // taskCompleteButton
             // 
@@ -353,7 +353,7 @@ namespace client_app
             taskCompleteButton.TabIndex = 4;
             taskCompleteButton.Text = "Complete";
             taskCompleteButton.UseVisualStyleBackColor = true;
-            taskCompleteButton.Click += taskCompleteButton_Click;
+            taskCompleteButton.Click += TaskCompleteButton_Click;
             // 
             // aiAssistantSendButton
             // 
@@ -364,7 +364,7 @@ namespace client_app
             aiAssistantSendButton.TabIndex = 5;
             aiAssistantSendButton.Text = "Send (Assistant)";
             aiAssistantSendButton.UseVisualStyleBackColor = false;
-            aiAssistantSendButton.Click += aiAssistantSendButton_Click;
+            aiAssistantSendButton.Click += AIAssistantSendButton_Click;
             // 
             // MainForm
             // 

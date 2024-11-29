@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
+using client_app.Models;
 
 namespace client_app.Services
 {
@@ -15,13 +16,13 @@ namespace client_app.Services
         public event Action<ProjectData?>? OnCurrentProjectChanged;
 
         private readonly AppConfiguration _config;
-        private readonly List<ProjectData> _recentProjects = new();
+        private readonly List<ProjectData> _recentProjects = [];
 
         private ProjectData? _currentProject = null;
-        private ProjectData? currentProject
+        public ProjectData? CurrentProject
         {
             get { return _currentProject; }
-            set
+            private set
             {
                 if (_currentProject == value)
                     return;
@@ -46,7 +47,7 @@ namespace client_app.Services
 
             // load last project, if configured to do so
             if (config.LoadLastProjectOnStartup && _recentProjects.Count > 0)
-                currentProject = _recentProjects[0];
+                CurrentProject = _recentProjects[0];
         }
 
         public async Task<ProjectData?> CreateProjectAsync(string? name = null, string? author = null, string? description = null)
@@ -63,7 +64,7 @@ namespace client_app.Services
             };
 
             await SaveProjectAsync(newProject);
-            currentProject = newProject;
+            CurrentProject = newProject;
 
             return newProject;
         }
@@ -72,12 +73,12 @@ namespace client_app.Services
         {
             Debug.WriteLine($"Service: [{nameof(ProjectService)}] Method: [{nameof(UpdateProjectAsync)}]");
 
-            if (currentProject?.ID != projectData.ID)
+            if (CurrentProject?.ID != projectData.ID)
                 return false;
 
-            currentProject.DisplayName = projectData.DisplayName;
-            currentProject.Author = projectData.Author;
-            currentProject.Description = projectData.Description;
+            CurrentProject.DisplayName = projectData.DisplayName;
+            CurrentProject.Author = projectData.Author;
+            CurrentProject.Description = projectData.Description;
 
             if (!await SaveProjectAsync())
                 return false;
@@ -89,11 +90,11 @@ namespace client_app.Services
         {
             Debug.WriteLine($"Service: [{nameof(ProjectService)}] Method: [{nameof(GetCurrentProject)}]");
 
-            return currentProject;
+            return CurrentProject;
         }
 
         public async Task<bool> SaveProjectAsync()
-            => await SaveProjectAsync(currentProject);
+            => await SaveProjectAsync(CurrentProject);
 
         private async Task<bool> SaveProjectAsync(ProjectData? projectData)
         {
@@ -121,13 +122,13 @@ namespace client_app.Services
             return false;
         }
 
-        public async Task<ProjectData?> LoadProjectAsync(Guid ID)
+        public async Task<ProjectData?> LoadProjectAsync(Guid id)
         {
             Debug.WriteLine($"Service: [{nameof(ProjectService)}] Method: [{nameof(LoadProjectAsync)}]");
 
             try
             {
-                var projectPath = GetProjectPath(ID);
+                var projectPath = GetProjectPath(id);
                 if (!Directory.Exists(projectPath))
                     return null;
 
@@ -141,13 +142,13 @@ namespace client_app.Services
                 if (project == null)
                     return null;
 
-                currentProject = project;
+                CurrentProject = project;
 
                 return project;
             }
             catch (Exception exc)
             {
-                Debug.WriteLine($"An exception occurred when attempting to load project with ID [{ID}]. Message: {exc}");
+                Debug.WriteLine($"An exception occurred when attempting to load project with ID [{id}]. Message: {exc}");
             }
 
             return null;
@@ -174,7 +175,7 @@ namespace client_app.Services
 
                         if (project.DisplayName.Equals(name, StringComparison.OrdinalIgnoreCase))
                         {
-                            currentProject = project;
+                            CurrentProject = project;
 
                             return project;
                         }
@@ -189,11 +190,11 @@ namespace client_app.Services
             return null;
         }
 
-        private string GetProjectPath(Guid ID)
+        private string GetProjectPath(Guid id)
         {
             Debug.WriteLine($"Service: [{nameof(ProjectService)}] Method: [{nameof(GetProjectPath)}]");
 
-            return Path.Combine(_config.ProjectsDirectory, ID.ToString());
+            return Path.Combine(_config.ProjectsDirectory, id.ToString());
         }
 
         private void AddToRecentProjects(ProjectData project)
@@ -289,10 +290,10 @@ namespace client_app.Services
                 if (string.IsNullOrEmpty(key))
                     return false;
 
-                if (currentProject == null)
+                if (CurrentProject == null)
                     return false;
 
-                var projectPath = GetProjectPath(currentProject.ID);
+                var projectPath = GetProjectPath(CurrentProject.ID);
                 var filePath = Path.Combine(projectPath, $"{key}.json");
                 await File.WriteAllTextAsync(filePath, data).ConfigureAwait(false);
 
@@ -300,7 +301,7 @@ namespace client_app.Services
             }
             catch (Exception exc)
             {
-                Debug.WriteLine($"An exception occurred when attempting to save data for project [{currentProject?.ID}] at key [{key}]. Message: {exc}");
+                Debug.WriteLine($"An exception occurred when attempting to save data for project [{CurrentProject?.ID}] at key [{key}]. Message: {exc}");
             }
 
             return false;
@@ -315,17 +316,17 @@ namespace client_app.Services
                 if (string.IsNullOrWhiteSpace(key))
                     return null;
 
-                if (currentProject == null)
+                if (CurrentProject == null)
                     return null;
 
-                var filePath = Path.Combine(GetProjectPath(currentProject.ID), $"{key}.json");
-                var stringContents = await File.ReadAllTextAsync(filePath);
+                var filepath = Path.Combine(GetProjectPath(CurrentProject.ID), $"{key}.json");
+                var stringContents = await ReadFileContentsAsync(filepath);
 
                 return stringContents;
             }
             catch (Exception exc)
             {
-                Debug.WriteLine($"An exception occurred when attempting to load data for project [{currentProject?.ID}] at key [{key}]. Message: {exc}");
+                Debug.WriteLine($"An exception occurred when attempting to load data for project [{CurrentProject?.ID}] at key [{key}]. Message: {exc}");
             }
 
             return null;
@@ -342,17 +343,56 @@ namespace client_app.Services
                 if (string.IsNullOrWhiteSpace(key))
                     return false;
 
-                if (currentProject == null)
+                if (CurrentProject == null)
                     return false;
 
-                var filePath = Path.Combine(GetProjectPath(currentProject.ID), $"{key}.json");
-                File.Delete(filePath);
+                var filePath = Path.Combine(GetProjectPath(CurrentProject.ID), $"{key}.json");
+                
 
                 return true;
             }
             catch (Exception exc)
             {
-                Debug.WriteLine($"An exception occurred when attempting to delete data for project [{currentProject?.ID}] at key [{key}]. Message: {exc}");
+                Debug.WriteLine($"An exception occurred when attempting to delete data for project [{CurrentProject?.ID}] at key [{key}]. Message: {exc}");
+            }
+
+            return false;
+        }
+
+        private static async Task<string?> ReadFileContentsAsync(string? filepath)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(filepath))
+                    return null;
+
+                var stringContents = await File.ReadAllTextAsync(filepath);
+
+                return stringContents;
+            }
+            catch (Exception exc)
+            {
+                Debug.WriteLine($"An exception occurred when attempting to load data from file at path [{filepath}]. Message: {exc}");
+            }
+
+            return null;
+        }
+
+        private static async Task<bool> DeleteFileAsync(string? filepath)
+        {
+            await Task.CompletedTask;
+
+            try
+            {
+                if (string.IsNullOrWhiteSpace(filepath))
+                    return false;
+
+                File.Delete(filepath);
+                return true;
+            }
+            catch (Exception exc)
+            {
+                Debug.WriteLine($"An exception occurred when attempting to delete file at path [{filepath}]. Message: {exc}");
             }
 
             return false;

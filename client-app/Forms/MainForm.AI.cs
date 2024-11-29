@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using client_app.Models;
 
 namespace client_app
 {
@@ -15,7 +16,7 @@ namespace client_app
             Debug.WriteLine($"Method: {nameof(OnAITabSelected)}");
             await Task.CompletedTask;
 
-            bool messageAllowed = !string.IsNullOrWhiteSpace(_config?.ChatGPTApiKey) && !string.IsNullOrWhiteSpace(_config?.ChatGPTApiUrl);
+            var messageAllowed = !string.IsNullOrWhiteSpace(_config?.ChatGPTApiKey) && !string.IsNullOrWhiteSpace(_config?.ChatGPTApiUrl);
             aiSendButton.Enabled = messageAllowed;
             aiAssistantSendButton.Enabled = messageAllowed;
 
@@ -26,15 +27,15 @@ namespace client_app
             }
         }
 
-        private async void aiSendButton_Click(object sender, EventArgs e)
+        private async void AISendButton_Click(object sender, EventArgs e)
         {
-            Debug.WriteLine($"Method: {nameof(aiSendButton_Click)}");
+            Debug.WriteLine($"Method: {nameof(AISendButton_Click)}");
             await Task.CompletedTask;
 
-            string requestText = aiRequestTextbox.Text;
+            var requestText = aiRequestTextbox.Text;
             if (!string.IsNullOrWhiteSpace(requestText))
             {
-                string? responseText = await _aiService.CompleteChatAsync(requestText);
+                var responseText = await _aiService.CompleteChatAsync(requestText);
                 aiResponseTextbox.Text = responseText;
             }
             else
@@ -43,15 +44,15 @@ namespace client_app
             }
         }
 
-        private async void aiAssistantSendButton_Click(object sender, EventArgs e)
+        private async void AIAssistantSendButton_Click(object sender, EventArgs e)
         {
-            Debug.WriteLine($"Method: {nameof(aiAssistantSendButton_Click)}");
+            Debug.WriteLine($"Method: {nameof(AIAssistantSendButton_Click)}");
             await Task.CompletedTask;
 
-            string requestText = aiRequestTextbox.Text;
+            var requestText = aiRequestTextbox.Text;
             if (!string.IsNullOrWhiteSpace(requestText))
             {
-                string? responseText = await _aiService.CreateAssistantMessageAndRunAsync(requestText);
+                var responseText = await _aiService.CreateAssistantMessageAndRunAsync(requestText);
                 aiResponseTextbox.Text = responseText;
             }
             else

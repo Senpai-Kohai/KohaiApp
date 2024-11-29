@@ -16,10 +16,8 @@ namespace client_app.Services
         {
             get
             {
-                var sectionName = GetType().GetCustomAttribute<ConfigurationSectionNameAttribute>(false)?.SectionName;
-
-                if (_serviceConfiguration == null)
-                    _serviceConfiguration = ConfigurationUtils.LoadConfiguration<TConfig>(sectionName);
+                var sectionName = GetType().GetCustomAttribute<ServiceConfigurationAttribute>(false)?.SectionName;
+                _serviceConfiguration ??= ConfigurationUtils.LoadConfiguration<TConfig>(sectionName);
 
                 return _serviceConfiguration;
             }

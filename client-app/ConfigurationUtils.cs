@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using client_app.Attributes;
 using Microsoft.Extensions.Configuration;
 
 namespace client_app
@@ -53,6 +55,22 @@ namespace client_app
             return keyMappings;
         }
 
+
+        /// <summary>
+        /// </summary>
+        /// <param name="prefix">An optional common prefix for mappings, usually ending in __ by convention.</param>
+        /// <returns></returns>
+        public static IDictionary<string, string> CreateSwitchMappings(Type type, string? prefix)
+        {
+            var keyMappings = new Dictionary<string, string>();
+            foreach (var propertyInfo in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                keyMappings[CreateSwitchFromName(prefix, propertyInfo.Name)] = propertyInfo.Name;
+            }
+
+            return keyMappings;
+        }
+
         /// <summary>
         /// Builds the given configuration from all available data sources-
         /// ENVs, run switches / args, appsettings.json, etc.
@@ -88,6 +106,62 @@ namespace client_app
                 sectionConfiguration.GetSection(sectionName).Bind(configInstance);
 
             return configInstance;
+        }
+
+        /// <summary>
+        /// Builds the given configuration from all available data sources-
+        /// ENVs, run switches / args, appsettings.json, etc.
+        /// 
+        /// The standard format is that an appsettings "sections" is given
+        /// as {section_name}__variable in ENVs, and similarly (replacing
+        /// underscored with dashes) for run switches/args.
+        /// </summary>
+        /// <typeparam name="T">CLR type for returned configuration object.</typeparam>
+        /// <param name="sectionName">Optional configuration section name.</param>
+        /// <returns></returns>
+        public static void LoadConfiguration(object? configuration, string? sectionName = null)
+        {
+            if (configuration == null)
+                return;
+
+            // Create switch mappings for environment variables
+            var switchMappings = CreateSwitchMappings(configuration.GetType(), sectionName);
+
+            // Build section-specific configuration
+            var sectionConfiguration = new ConfigurationBuilder()
+                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                .AddEnvironmentVariables()
+                .AddEnvironmentVariables(prefix: sectionName)
+                .AddCommandLine(Environment.GetCommandLineArgs(), null)
+                .AddCommandLine(Environment.GetCommandLineArgs(), switchMappings)
+                .Build();
+
+            // Bind the combined configuration to the instance
+            sectionConfiguration.Bind(configuration);
+
+            // Bind the section too, if provided
+            if (!string.IsNullOrWhiteSpace(sectionName))
+                sectionConfiguration.GetSection(sectionName).Bind(configuration);
+        }
+
+        public static bool ValidateConfiguration(object config)
+        {
+            var configType = config.GetType();
+            var properties = configType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+
+            foreach (var property in properties)
+            {
+                if (property.GetCustomAttribute<RequiredConfigurationAttribute>() != null)
+                {
+                    var value = property.GetValue(config);
+                    if (value == null)
+                    {
+                        Debug.WriteLine($"Configuration property '{property.Name}' is required but is not set.");
+                        return false;
+                    }
+                }
+            }
+            return true;
         }
     }
 }

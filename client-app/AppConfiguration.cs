@@ -9,6 +9,11 @@ using Microsoft.Extensions.Configuration;
 
 namespace client_app
 {
+    /// <summary>
+    /// The configuration for the app as a whole, such a setting logging levels, file management, etc.
+    /// Please create additional configuration types for individual services, and decorate them with the ServiceConfigurationAttribute.
+    /// Feel free to dervice from AppConfiguration to include the app config in your service config type as well.
+    /// </summary>
     public class AppConfiguration
     {
         public string ProjectsDirectory { get; set; } = "Projects";
@@ -16,10 +21,5 @@ namespace client_app
         public string TasksFilename { get; set; } = "tasks.json";
 
         public bool LoadLastProjectOnStartup { get; set; } = true;
-        public string? ChatGPTApiKey { get; set; }
-        public string? ChatGPTApiUrl { get; set; }
-        public string? ChatGPTAssistantAI { get; set; }
-        public int ChatGPTRetryMaxAttempts { get; set; } = 50;
-        public int ChatGPTRetryInterval { get; set; } = 200;
     }
 }

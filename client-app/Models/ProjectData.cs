@@ -1,7 +1,7 @@
 ﻿using System;
 using Newtonsoft.Json;
 
-namespace client_app
+namespace client_app.Models
 {
     [JsonObject()]
     public class ProjectData
@@ -38,9 +38,9 @@ namespace client_app
             LastUpdatedAt = CreatedAt;
         }
 
-        public ProjectData(Guid ID)
+        public ProjectData(Guid id)
         {
-            this.ID = ID;
+            this.ID = id;
 
             CreatedAt = DateTime.UtcNow;
             LastUpdatedAt = CreatedAt;

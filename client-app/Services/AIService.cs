@@ -1,14 +1,8 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Net.Http;
 using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using OpenAI.Assistants;
 using System.Linq;
-using System.ClientModel.Primitives;
 using OpenAI;
 using client_app.Services.Configuration;
 
@@ -23,7 +17,6 @@ namespace client_app.Services
 #pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
         private AssistantClient? _assistantClient;
 #pragma warning restore OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
-        private OpenAI.Files.FileClient? _fileClient;
 
         private readonly ProjectService _projectService;
         private readonly OpenAIClient? _openAIClient;
@@ -39,9 +32,9 @@ namespace client_app.Services
         {
             _projectService = projectService;
 
-            if (ServiceConfiguration.ChatGPTApiKey == null)
+            if (!ConfigurationUtils.ValidateConfiguration(ServiceConfiguration))
             {
-                Debug.WriteLine($"Error starting AI service: API key not configured.");
+                Debug.WriteLine($"Error starting AI service: required configuration not set.");
 
                 return;
             }
@@ -78,16 +71,15 @@ namespace client_app.Services
                 return null;
             }
 
-            if (_chatClient == null)
-                _chatClient = _openAIClient?.GetChatClient(model) ?? throw new NullReferenceException("Chat client is null");
+            _chatClient ??= _openAIClient?.GetChatClient(model) ?? throw new NullReferenceException("Chat client is null");
 
             try
             {
                 var apiOptions = new OpenAI.Chat.ChatCompletionOptions()
                 {
-                    User = user ?? "user"
+                    EndUserId = user ?? "user"
                 };
-                var result = await _chatClient.CompleteChatAsync(new[] { new OpenAI.Chat.AssistantChatMessage(message) }, apiOptions, Program.ShutdownTokenSource.Token);
+                var result = await _chatClient.CompleteChatAsync([new OpenAI.Chat.AssistantChatMessage(message)], apiOptions, Program.ShutdownTokenSource.Token);
 
                 return result.Value.Content.FirstOrDefault()?.Text;
             }
@@ -118,42 +110,46 @@ namespace client_app.Services
             _assistantClient ??= _openAIClient?.GetAssistantClient() ?? throw new NullReferenceException("Chat client is null");
 #pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
 
-            if (string.Equals(_currentAssistantName, name, StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrWhiteSpace(name) || string.Equals(_currentAssistantName, name, StringComparison.OrdinalIgnoreCase))
+            {
+                Debug.WriteLine($"Returning existing Assistant AI [{_currentAssistantName}] with ID [{_currentAssistantID}].");
+
                 return _currentAssistantID;
+            }
 
             try
             {
-                var apiOptions = new RequestOptions()
+                var requestOptions = new AssistantCollectionOptions()
                 {
-                    CancellationToken = Program.ShutdownTokenSource.Token
+                    PageSizeLimit = 100,
+                    Order = AssistantCollectionOrder.Descending
                 };
-                var result = await _assistantClient.GetAssistantAsync(name, apiOptions);
+                var collResult = _assistantClient.GetAssistantsAsync(requestOptions, Program.ShutdownTokenSource.Token);
 
                 try
                 {
-                    var resultStr = result.GetRawResponse()?.Content?.ToString();
-                    if (!string.IsNullOrWhiteSpace(resultStr))
+                    var collEnumerator = collResult.GetAsyncEnumerator();
+                    while (await collEnumerator.MoveNextAsync())
                     {
-                        var resultObj = JObject.Parse(resultStr);
-                        var assistantID = (string?)resultObj["id"];
+                        var assistant = collEnumerator.Current;
+                        if (assistant == null || assistant.Name == null)
+                            continue;
 
-                        if (string.IsNullOrWhiteSpace(assistantID))
+                        if (string.Equals(name, assistant.Name, StringComparison.OrdinalIgnoreCase))
                         {
-                            _currentAssistantName = name;
-                            _currentAssistantID = assistantID;
+                            Debug.WriteLine($"Assistant [{assistant.Name}] located, ID: [{assistant.Id}]");
+
+                            _currentAssistantName = assistant.Name;
+                            _currentAssistantID = assistant.Id;
+
+                            return _currentAssistantID;
                         }
-
-                        return assistantID;
                     }
-
-                    Debug.WriteLine($"Failed to determine Assistant ID from API response. Response: {resultStr}");
                 }
                 catch (Exception exc)
                 {
-                    Debug.WriteLine($"Error parsing GetAssistant response as JSON: {exc}");
+                    Debug.WriteLine($"Error handling GetAssistants response: {exc}");
                 }
-
-                return null;
             }
             catch (Exception exc)
             {
@@ -161,6 +157,10 @@ namespace client_app.Services
 
                 return null;
             }
+
+            Debug.WriteLine($"Existing Assistant AI with name [{name}] could not be located.");
+
+            return null;
         }
 
         /// <summary>
@@ -179,12 +179,23 @@ namespace client_app.Services
                 return null;
             }
 
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                Debug.WriteLine($"A name is required when generating a new assistant.");
+
+                return null;
+            }
+
 #pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
             _assistantClient ??= _openAIClient?.GetAssistantClient() ?? throw new NullReferenceException("Chat client is null");
 #pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
 
             if (string.Equals(_currentAssistantName, name, StringComparison.OrdinalIgnoreCase))
+            {
+                Debug.WriteLine($"Assistant AI with name [{_currentAssistantName}] exists already- returning ID [{_currentAssistantID}].");
+
                 return _currentAssistantID;
+            }
 
             try
             {
@@ -314,7 +325,7 @@ namespace client_app.Services
         /// <returns>Whether the messages were successfully published to the assistant thread.</returns>
         /// <exception cref="NullReferenceException"></exception>
         public async Task<bool> CreateAssistantMessageAsync(string message, MessageRole role = MessageRole.User)
-            => await CreateAssistantMessageAsync(new[] { message }, role);
+            => await CreateAssistantMessageAsync([message], role);
 
         /// <summary>
         /// Publishes one or more messages to the assistant thread.
@@ -355,7 +366,7 @@ namespace client_app.Services
         /// <returns>Whether the messages were successfully published to the assistant thread.</returns>
         /// <exception cref="NullReferenceException"></exception>
         public async Task<bool> CreateAssistantMessageAsync(string threadID, string message, MessageRole role = MessageRole.User)
-            => await CreateAssistantMessageAsync(threadID, new[] { message }, role);
+            => await CreateAssistantMessageAsync(threadID, [message], role);
 
         /// <summary>
         /// Publishes one or more messages to the assistant thread.
@@ -388,7 +399,7 @@ namespace client_app.Services
                 {
                 };
                 // just for debugging purposes
-                apiOptions.Metadata["owner"] = "kohai";
+                apiOptions.Metadata["user"] = "Senpai";
 
                 var result = await _assistantClient.CreateMessageAsync(threadID, role, messageContents, apiOptions, Program.ShutdownTokenSource.Token);
 
@@ -417,6 +428,8 @@ namespace client_app.Services
                 return null;
             }
 
+            Debug.WriteLine($"Assistant AI established with ID [{assistantID}].");
+
             var threadID = await GetCurrentThreadIDAsync(loadMostRecent: true) ?? await CreateAssistantThreadAsync();
             if (string.IsNullOrWhiteSpace(threadID))
             {
@@ -425,12 +438,16 @@ namespace client_app.Services
                 return null;
             }
 
+            Debug.WriteLine($"Thread created with ID [{threadID}].");
+
             if (!await CreateAssistantMessageAsync(threadID, message, role))
             {
                 Debug.WriteLine($"Error: failed to publish message to assistant thread with ID [{threadID}].");
 
                 return null;
             }
+
+            Debug.WriteLine($"New message on thread created.");
 
             var runID = await RunAssistantThreadAsync();
             if (string.IsNullOrWhiteSpace(runID))
@@ -440,6 +457,8 @@ namespace client_app.Services
                 return null;
             }
 
+            Debug.WriteLine($"Started AI thread processing- now running with ID [{runID}].");
+
             if (!await PollAssistantThreadUntilCompletedAsync(runID))
             {
                 Debug.WriteLine($"Error: Assistant thread run with id [{runID}] did not complete within the expiration time.");
@@ -447,11 +466,15 @@ namespace client_app.Services
                 return null;
             }
 
+            Debug.WriteLine($"Thread processing run complete. Checking for new responses from Assistant AI.");
+
             var lastMessage = await GetLastAssistantMessageAsync();
             if (string.IsNullOrWhiteSpace(lastMessage))
             {
                 Debug.WriteLine($"Error: failed to get last assistant thread message for run with ID [{runID}].");
             }
+
+            Debug.WriteLine($"New Assistant AI response was received- returning to requester.");
 
             return lastMessage;
         }
@@ -481,7 +504,7 @@ namespace client_app.Services
             _assistantClient ??= _openAIClient?.GetAssistantClient() ?? throw new NullReferenceException("Chat client is null");
 #pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
 
-            return (await GetAssistantMessagesAsync(_currentThreadID, ListOrder.NewestFirst))?.FirstOrDefault();
+            return (await GetAssistantMessagesAsync(_currentThreadID, MessageCollectionOrder.Descending))?.FirstOrDefault();
         }
 
         /// <summary>
@@ -489,7 +512,7 @@ namespace client_app.Services
         /// </summary>
         /// <param name="listOrder">The order the messages are returned in.</param>
         /// <returns>The messages in the current thread.</returns>
-        public async Task<IEnumerable<string>?> GetAssistantMessagesAsync(ListOrder? listOrder = null)
+        public async Task<IEnumerable<string>?> GetAssistantMessagesAsync(MessageCollectionOrder? listOrder = null)
         {
             if (string.IsNullOrWhiteSpace(_currentThreadID))
             {
@@ -508,7 +531,7 @@ namespace client_app.Services
         /// <param name="listOrder">The order the messages are returned in.</param>
         /// <returns>The messages in a given thread.</returns>
         /// <exception cref="NullReferenceException"></exception>
-        public async Task<IEnumerable<string>?> GetAssistantMessagesAsync(string threadID, ListOrder? listOrder)
+        public async Task<IEnumerable<string>?> GetAssistantMessagesAsync(string threadID, MessageCollectionOrder? listOrder)
         {
             if (!ServiceRunning)
             {
@@ -523,13 +546,13 @@ namespace client_app.Services
 
             try
             {
-                var results = _assistantClient.GetMessagesAsync(threadID, listOrder, Program.ShutdownTokenSource.Token);
+                var results = _assistantClient.GetMessagesAsync(threadID, new MessageCollectionOptions() { Order = listOrder }, Program.ShutdownTokenSource.Token);
 
                 var messages = new List<string>();
 
                 await foreach (var result in results)
                 {
-                    var newMessage = result?.Content?.FirstOrDefault()?.Text;
+                    var newMessage = result?.Content?[0]?.Text;
 
                     if (!string.IsNullOrWhiteSpace(newMessage))
                         messages.Add(newMessage);
@@ -670,9 +693,7 @@ namespace client_app.Services
                 return null;
             }
 
-#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
             _assistantClient ??= _openAIClient?.GetAssistantClient() ?? throw new NullReferenceException("Chat client is null");
-#pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
 
             try
             {
@@ -685,461 +706,6 @@ namespace client_app.Services
                 Debug.WriteLine($"Error communicating with ChatGPT completion API endpoint. Exception: {exc}");
 
                 return null;
-            }
-        }
-
-
-        // OLD NON-SDK METHODS
-        public async Task<string?> GetAIAssistantResponseAsync(string prompt)
-        {
-            if (string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiKey) || string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiUrl))
-            {
-                Debug.WriteLine($"Error communicating with ChatGPT Assistant API endpoint: API key or url not configured.");
-
-                return null;
-            }
-
-            if (string.IsNullOrWhiteSpace(_currentThreadID) && !await CreateNewThread())
-            {
-                Debug.WriteLine($"Could not create a new thread for the Assistant API to use for prompt: {prompt}");
-
-                return null;
-            }
-
-            if (!await AddMessageToThread(prompt))
-            {
-                Debug.WriteLine($"Could not add a new message to thread for the Assistant API to use for prompt: {prompt}");
-
-                return null;
-            }
-
-            var response = await RunCurrentAssistantAIThread_AndWaitForResponse();
-            if (string.IsNullOrWhiteSpace(response))
-            {
-                Debug.WriteLine($"Failed to get valid response from Assistant AI for prompt: {prompt}");
-
-                return null;
-            }
-
-            try
-            {
-                if (response.StartsWith('{'))
-                {
-                    var responseObj = JObject.Parse(response);
-
-                    var functionName = responseObj["function"]?.ToString();
-                    if (string.Equals("create_character_profile", functionName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        var characterNickname = (string?)responseObj["nickname"];
-                        var characterAge = (int?)responseObj["age"];
-                        response = $"A new character profile was created!\n  Name: {characterNickname}\n  Age: {characterAge}";
-                    }
-                }
-            }
-            catch (Exception exc)
-            {
-                Debug.WriteLine($"An exception occurred parsing an Assistant AI response as a function payload: {exc}");
-            }
-
-            return response;
-        }
-
-        private async Task<string?> RetrieveAssistantAIGuid()
-        {
-            if (string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiKey) || string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiUrl))
-            {
-                Debug.WriteLine($"Error communicating with ChatGPT Retrieve Assistant ID API endpoint: API key or url not configured.");
-
-                return null;
-            }
-
-            var requestUri = $"{ServiceConfiguration.ChatGPTApiUrl}/assistants";
-
-            Debug.WriteLine($"AI prompt Retrieve Assistant ID API request (no payload)");
-
-            using (var requestMessage = new HttpRequestMessage(HttpMethod.Get, requestUri))
-            {
-                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ServiceConfiguration.ChatGPTApiKey);
-                requestMessage.Headers.Add("OpenAI-Beta", "assistants=v2");
-
-                var response = await _httpClient.SendAsync(requestMessage);
-                if (response.IsSuccessStatusCode)
-                {
-                    var jsonResponse = await response.Content.ReadAsStringAsync();
-                    var responseObject = JObject.Parse(jsonResponse);
-
-                    var assistantID = (string?)responseObject?["data"]?[0]?["id"];
-
-                    return assistantID;
-                }
-                else
-                {
-                    Debug.WriteLine($"Error communicating with ChatGPT Retrieve Assistant ID API endpoint at {requestUri}. Reason: {response.ReasonPhrase}");
-                }
-
-                return null;
-            }
-        }
-
-        private async Task<string?> RunCurrentAssistantAIThread()
-        {
-            if (string.IsNullOrWhiteSpace(_currentThreadID))
-            {
-                Debug.WriteLine($"Current thread not set, and is unable to be run by the Assistant AI.");
-
-                return null;
-            }
-
-            if (string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiKey) || string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiUrl))
-            {
-                Debug.WriteLine($"Error communicating with ChatGPT Run Thread Assistant API endpoint: API key or url not configured.");
-
-                return null;
-            }
-
-            var assistantID = ServiceConfiguration.ChatGPTAssistantAI ?? await RetrieveAssistantAIGuid();
-            if (string.IsNullOrWhiteSpace(assistantID))
-            {
-                Debug.WriteLine($"Could not determine Assistant AI identifier to use, either from ENV or retrieved via API request.");
-
-                return null;
-            }
-
-            var requestObject = new JObject(
-                new JProperty("assistant_id", assistantID)
-            );
-
-            var requestString = requestObject.ToString();
-            var requestUri = $"{ServiceConfiguration.ChatGPTApiUrl}/threads/{_currentThreadID}/runs";
-
-            Debug.WriteLine($"AI prompt Run Thread Assistant API request (no payload)");
-
-            using (var requestMessage = new HttpRequestMessage(HttpMethod.Post, requestUri))
-            {
-                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ServiceConfiguration.ChatGPTApiKey);
-                requestMessage.Headers.Add("OpenAI-Beta", "assistants=v2");
-                requestMessage.Content = new StringContent(requestString, Encoding.UTF8, "application/json");
-
-                var response = await _httpClient.SendAsync(requestMessage);
-                if (response.IsSuccessStatusCode)
-                {
-                    var jsonResponse = await response.Content.ReadAsStringAsync();
-                    var responseObject = JObject.Parse(jsonResponse);
-
-                    return (string?)responseObject?["id"];
-                }
-                else
-                {
-                    Debug.WriteLine($"Error communicating with ChatGPT Run Thread Assistant API endpoint at {requestUri}. Reason: {response.ReasonPhrase}");
-                }
-
-                return null;
-            }
-        }
-
-        private async Task<string?> RunCurrentAssistantAIThread_AndWaitForResponse()
-        {
-            if (string.IsNullOrWhiteSpace(_currentThreadID))
-            {
-                Debug.WriteLine($"Current thread not set, and required in order to wait for run response.");
-
-                return null;
-            }
-
-            var runID = await RunCurrentAssistantAIThread();
-            if (string.IsNullOrWhiteSpace(runID))
-            {
-                Debug.WriteLine($"Failed to retrieve run ID from Run Thread Assistant API request.");
-
-                return null;
-            }
-
-            var attemptInterval = TimeSpan.FromMilliseconds(ServiceConfiguration.ChatGPTRetryInterval);
-            var success = false;
-
-            for (var i = 0; i < ServiceConfiguration.ChatGPTRetryMaxAttempts; i++)
-            {
-                var responseObj = await GetAssistantAIRunState(runID);
-                var runState = (string?)responseObj?["status"];
-
-                Debug.WriteLine($"Current run state: [{runState}]");
-
-                if (string.Equals("requires_action", runState, StringComparison.OrdinalIgnoreCase))
-                {
-                    var runStatePrintedLines = responseObj?.ToString(Formatting.Indented)?.Split('\n');
-                    if (runStatePrintedLines == null)
-                        continue;
-
-                    foreach (var runStatePrintedLine in runStatePrintedLines)
-                        Debug.WriteLine($"{runStatePrintedLine}");
-
-                    var requiredActionsStr = (await GetFunctionCallsFromRequiredActions(runID, responseObj))?.ToString(Formatting.None);
-                    if (!string.IsNullOrWhiteSpace(requiredActionsStr))
-                        return requiredActionsStr;
-
-                    break;
-                }
-
-                if (string.Equals("completed", runState, StringComparison.OrdinalIgnoreCase))
-                {
-                    success = true;
-                    break;
-                }
-
-                await Task.Delay(attemptInterval);
-            }
-
-            if (success)
-                return await GetLastMessageFromCurrentThread();
-
-            return null;
-        }
-
-        private async Task<JArray?> GetFunctionCallsFromRequiredActions(string runID, JObject responseObject)
-        {
-            if (string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiKey) || string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiUrl))
-            {
-                Debug.WriteLine($"Error communicating with ChatGPT Run Thread Assistant API endpoint: API key or url not configured.");
-
-                return null;
-            }
-
-            var confirmToolOutputs = new JArray();
-            var functionCalls = new JArray();
-            var requiredAction = (JObject?)responseObject["required_action"];
-
-            if (requiredAction == null)
-                return null;
-
-            var submitToolOutputs = (JObject?)requiredAction["submit_tool_outputs"];
-            if (submitToolOutputs == null)
-                return null;
-
-            var toolCalls = (JArray?)submitToolOutputs["tool_calls"];
-            if (toolCalls == null)
-                return null;
-
-            foreach (var toolCallObj in toolCalls)
-            {
-                var toolCallID = (string?)toolCallObj["id"];
-                var toolStringValue = (string?)toolCallObj["function"]?["arguments"];
-                if (string.IsNullOrEmpty(toolStringValue))
-                    continue;
-
-                var newFunctionCall = JObject.Parse(toolStringValue);
-                if (newFunctionCall != null)
-                {
-                    confirmToolOutputs.Add(new JObject() { ["tool_call_id"] = toolCallID, ["output"] = toolStringValue });
-                    functionCalls.Add(newFunctionCall);
-                }
-            }
-
-            if (confirmToolOutputs.Count == 0)
-                return null;
-
-            var submitUri = $"{ServiceConfiguration.ChatGPTApiUrl}/threads/{_currentThreadID}/runs/{runID}/submit_tool_outputs";
-            using (var requestMessage = new HttpRequestMessage(HttpMethod.Post, submitUri))
-            {
-                var messagePayload = new JObject()
-                {
-                    ["tool_outputs"] = confirmToolOutputs
-                };
-
-                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ServiceConfiguration.ChatGPTApiKey);
-                requestMessage.Headers.Add("OpenAI-Beta", "assistants=v2");
-                requestMessage.Content = new StringContent(messagePayload.ToString(), Encoding.UTF8, "application/json");
-
-                var submitResponse = await _httpClient.SendAsync(requestMessage);
-                if (submitResponse.IsSuccessStatusCode)
-                {
-                    return functionCalls;
-                }
-                else
-                {
-                    var responseContent = await submitResponse.Content.ReadAsStringAsync();
-                    Debug.WriteLine($"Error submitting tool outputs: {submitResponse.ReasonPhrase}, Content: {responseContent}");
-                }
-            }
-
-            return null;
-        }
-
-        private async Task<string?> GetLastMessageFromCurrentThread()
-        {
-            if (string.IsNullOrWhiteSpace(_currentThreadID))
-            {
-                Debug.WriteLine($"Failed to get last message from current thread- current thread not set.");
-
-                return null;
-            }
-
-            var requestUri = $"{ServiceConfiguration.ChatGPTApiUrl}/threads/{_currentThreadID}/messages";
-
-            Debug.WriteLine($"AI prompt Get Last Message Assistant API request (no payload)");
-
-            using (var requestMessage = new HttpRequestMessage(HttpMethod.Get, requestUri))
-            {
-                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ServiceConfiguration.ChatGPTApiKey);
-                requestMessage.Headers.Add("OpenAI-Beta", "assistants=v2");
-
-                var response = await _httpClient.SendAsync(requestMessage);
-                if (response.IsSuccessStatusCode)
-                {
-                    try
-                    {
-                        var jsonResponse = await response.Content.ReadAsStringAsync();
-                        var responseObject = JObject.Parse(jsonResponse);
-
-                        var messageArray = (JArray?)responseObject["data"];
-                        var lastMessage = (JObject?)messageArray?.FirstOrDefault();
-                        var lastMessageContent = (JObject?)lastMessage?["content"]?.FirstOrDefault();
-                        var lastMessageStr = (string?)lastMessageContent?["text"]?["value"];
-
-                        return lastMessageStr;
-                    }
-                    catch (Exception exc)
-                    {
-                        Debug.WriteLine($"An exception occurred parsing the last message in the current Assistant AI thread: {exc}");
-                    }
-
-                    return null;
-                }
-                else
-                {
-                    Debug.WriteLine($"Error communicating with ChatGPT Get Last Message Assistant API endpoint at {requestUri}. Reason: {response.ReasonPhrase}");
-                }
-
-                return null;
-            }
-        }
-
-        private async Task<JObject?> GetAssistantAIRunState(string runID)
-        {
-            if (string.IsNullOrWhiteSpace(_currentThreadID))
-            {
-                Debug.WriteLine($"Error communicating with ChatGPT Get Run State Assistant API endpoint: current thread ID not set.");
-
-                return null;
-            }
-
-            if (string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiKey) || string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiUrl))
-            {
-                Debug.WriteLine($"Error communicating with ChatGPT Get Run State Assistant API endpoint: API key or url not configured.");
-
-                return null;
-            }
-
-            var requestUri = $"{ServiceConfiguration.ChatGPTApiUrl}/threads/{_currentThreadID}/runs/{runID}";
-
-            Debug.WriteLine($"Polling for Assistant AI thread run completion...");
-
-            using (var requestMessage = new HttpRequestMessage(HttpMethod.Get, requestUri))
-            {
-                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ServiceConfiguration.ChatGPTApiKey);
-                requestMessage.Headers.Add("OpenAI-Beta", "assistants=v2");
-
-                var response = await _httpClient.SendAsync(requestMessage);
-                if (response.IsSuccessStatusCode)
-                {
-                    var jsonResponse = await response.Content.ReadAsStringAsync();
-                    var responseObject = JObject.Parse(jsonResponse);
-
-                    return responseObject;
-                }
-                else
-                {
-                    Debug.WriteLine($"Error communicating with ChatGPT Run Thread Assistant API endpoint at {requestUri}. Reason: {response.ReasonPhrase}");
-                }
-
-                return null;
-            }
-        }
-
-        private async Task<bool> AddMessageToThread(string message)
-        {
-            if (string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiKey) || string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiUrl))
-            {
-                Debug.WriteLine($"Error communicating with ChatGPT Add Message Assistant API endpoint: API key or url not configured.");
-
-                return false;
-            }
-
-            var requestObject = new JObject(
-                new JProperty("role", "user"),
-                new JProperty("content", message)
-            );
-
-            // To convert the JObject to a string if needed
-            var requestString = requestObject.ToString();
-            var requestUri = $"{ServiceConfiguration.ChatGPTApiUrl}/threads/{_currentThreadID}/messages";
-
-            Debug.WriteLine($"AI prompt Add Message Assistant API request payload: {requestString}");
-
-            using (var requestMessage = new HttpRequestMessage(HttpMethod.Post, requestUri))
-            {
-                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ServiceConfiguration.ChatGPTApiKey);
-                requestMessage.Headers.Add("OpenAI-Beta", "assistants=v2");
-                requestMessage.Content = new StringContent(requestString, Encoding.UTF8, "application/json");
-
-                var response = await _httpClient.SendAsync(requestMessage);
-                if (response.IsSuccessStatusCode)
-                {
-                    return true;
-                }
-                else
-                {
-                    Debug.WriteLine($"Error communicating with ChatGPT Add Message Assistant API endpoint at {requestUri}. Reason: {response.ReasonPhrase}");
-                }
-
-                return false;
-            }
-        }
-
-        private async Task<bool> CreateNewThread()
-        {
-            if (string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiKey) || string.IsNullOrWhiteSpace(ServiceConfiguration.ChatGPTApiUrl))
-            {
-                Debug.WriteLine($"Error communicating with ChatGPT Create Thread Assistant API endpoint: API key or url not configured.");
-
-                return false;
-            }
-
-            var requestUri = $"{ServiceConfiguration.ChatGPTApiUrl}/threads";
-
-            Debug.WriteLine($"AI prompt Create Thread Assistant API request (no payload)");
-
-            using (var requestMessage = new HttpRequestMessage(HttpMethod.Post, requestUri))
-            {
-                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ServiceConfiguration.ChatGPTApiKey);
-                requestMessage.Headers.Add("OpenAI-Beta", "assistants=v2");
-                //requestMessage.Headers.Add("Content-Type", "application/json");
-                requestMessage.Content = new StringContent("{}", Encoding.UTF8, "application/json");
-
-                var response = await _httpClient.SendAsync(requestMessage);
-                if (response.IsSuccessStatusCode)
-                {
-                    try
-                    {
-                        var jsonResponse = await response.Content.ReadAsStringAsync();
-                        var responseObject = JObject.Parse(jsonResponse);
-
-                        _currentThreadID = (string?)responseObject["id"];
-
-                        return _currentThreadID != null;
-                    }
-                    catch (Exception exc)
-                    {
-                        Debug.WriteLine($"An exception occurred parsing the Create Thread API response: {exc}");
-                    }
-
-                    return false;
-                }
-                else
-                {
-                    Debug.WriteLine($"Error communicating with ChatGPT Create Thread Assistant API endpoint at {ServiceConfiguration.ChatGPTApiUrl}. Reason: {response.ReasonPhrase}");
-                }
-
-                return false;
             }
         }
     }

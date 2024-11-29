@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using client_app.Models;
 
 namespace client_app
 {
@@ -24,9 +25,9 @@ namespace client_app
             completedCheckbox.Checked = IsCompleted = isCompleted;
         }
 
-        private async void taskWindow_okButton_Click(object sender, EventArgs e)
+        private async void TaskWindow_okButton_Click(object sender, EventArgs e)
         {
-            Debug.WriteLine($"Method: {nameof(taskWindow_okButton_Click)}");
+            Debug.WriteLine($"Method: {nameof(TaskWindow_okButton_Click)}");
             await Task.CompletedTask;
 
             TaskDescription = taskDescriptionTextBox.Text;
@@ -34,17 +35,17 @@ namespace client_app
             this.Close();
         }
 
-        private async void taskWindow_completedCheckbox_Updated(object sender, EventArgs e)
+        private async void TaskWindow_completedCheckbox_Updated(object sender, EventArgs e)
         {
-            Debug.WriteLine($"Method: {nameof(taskWindow_completedCheckbox_Updated)}");
+            Debug.WriteLine($"Method: {nameof(TaskWindow_completedCheckbox_Updated)}");
             await Task.CompletedTask;
 
             IsCompleted = completedCheckbox.Checked;
         }
 
-        private async void taskWindow_cancelButton_Click(object sender, EventArgs e)
+        private async void TaskWindow_cancelButton_Click(object sender, EventArgs e)
         {
-            Debug.WriteLine($"Method: {nameof(taskWindow_cancelButton_Click)}");
+            Debug.WriteLine($"Method: {nameof(TaskWindow_cancelButton_Click)}");
             await Task.CompletedTask;
 
             this.DialogResult = DialogResult.Cancel;

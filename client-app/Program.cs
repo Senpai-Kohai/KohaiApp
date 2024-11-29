@@ -6,6 +6,7 @@ using System.Net;
 using System.Reflection;
 using client_app.Attributes;
 using client_app.Services;
+using client_app.Services.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,22 +14,21 @@ namespace client_app
 {
     internal static class Program
     {
-        private static IConfiguration? Configuration { get; set; }
-        private static ServiceProvider? ServiceProvider { get; set; }
+        public static IConfiguration? Configuration { get; private set; }
+        public static ServiceProvider? ServiceProvider { get; private set; }
 
 
-        private static CancellationTokenSource? _shutdownTokenSource = null;
+        private static CancellationTokenSource? s_shutdownTokenSource = null;
         public static CancellationTokenSource ShutdownTokenSource
         {
             get
             {
-                if (_shutdownTokenSource == null)
-                    _shutdownTokenSource = new CancellationTokenSource();
+                s_shutdownTokenSource ??= new CancellationTokenSource();
 
-                return _shutdownTokenSource;
+                return s_shutdownTokenSource;
             }
 
-            private set { _shutdownTokenSource = value; }
+            private set { s_shutdownTokenSource = value; }
         }
 
         /// <summary>
@@ -77,37 +77,44 @@ namespace client_app
             var config = new AppConfiguration();
             Configuration?.Bind(config);
 
-            if (!ValidateConfiguration(config))
+            if (!ConfigurationUtils.ValidateConfiguration(config))
             {
                 Debug.WriteLine("Configuration validation failed. Exiting application.");
                 Environment.Exit(1);
             }
 
-            services.AddSingleton(config);
+            services.AddSingleton<AppConfiguration>(config);
             services.AddSingleton(new HttpClient());
             services.AddSingleton<ProjectService>();
             services.AddSingleton<AIService>();
             services.AddSingleton<MainForm>();
-        }
 
-        public static bool ValidateConfiguration(object config)
-        {
-            var configType = config.GetType();
-            var properties = configType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-
-            foreach (var property in properties)
+            // add all service configuration types to service registry, so forms/etc can easily use them via constructors
+            foreach (var type in Assembly.GetExecutingAssembly().GetTypes())
             {
-                if (property.GetCustomAttribute<RequiredConfigurationAttribute>() != null)
+                if (type.IsAbstract || type.IsNotPublic || type.IsValueType)
+                    continue;
+
+                try
                 {
-                    var value = property.GetValue(config);
-                    if (value == null)
-                    {
-                        Debug.WriteLine($"Configuration property '{property.Name}' is required but is not set.");
-                        return false;
-                    }
+                    var configAttr = type.GetCustomAttribute<ServiceConfigurationAttribute>();
+                    if (configAttr == null)
+                        continue;
+
+                    var serviceConfig = Activator.CreateInstance(type);
+                    if (serviceConfig == null)
+                        continue;
+
+                    Debug.WriteLine($"Adding service configuration type [{type.Name}] directly to the service provider.");
+
+                    ConfigurationUtils.LoadConfiguration(serviceConfig, configAttr?.SectionName);
+                    services.AddSingleton(type, serviceConfig);
+                }
+                catch (Exception exc)
+                {
+                    Debug.WriteLine($"An exception occurred trying to add service configuration type [{type.Name}] to the service provider: {exc}.");
                 }
             }
-            return true;
         }
     }
 }
