@@ -1,21 +1,24 @@
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Net.Http;
 using System.Text;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Kohai;
+using Kohai.Models;
+using Kohai.Services;
+using Kohai.Configuration;
 
-namespace client_app
+namespace Kohai.Client
 {
     public partial class MainForm : Form
     {
-        private ProjectService _projectService;
+        private readonly ProjectService _projectService;
         private readonly AIService _aiService;
-        private AppConfiguration _config;
-        private Dictionary<TabPage, Action> _tabSelectedActions = new Dictionary<TabPage, Action>();
+        private readonly Dictionary<TabPage, Action> _tabSelectedActions = [];
 
-        public MainForm(ProjectService projectService, AIService aiService, AppConfiguration config)
+        public MainForm(ProjectService projectService, AIService aiService)
         {
-            _config = config ?? throw new ArgumentNullException(nameof(config));
             _projectService = projectService ?? throw new ArgumentNullException(nameof(projectService));
             _aiService = aiService ?? throw new ArgumentNullException(nameof(aiService));
 
@@ -41,15 +44,15 @@ namespace client_app
         {
             Debug.WriteLine($"Method: {nameof(ReloadProjectData)}");
 
-            ProjectData? currentProject = _projectService.GetCurrentProject();
-            string projectName = currentProject?.DisplayName ?? currentProject?.ID.ToString() ?? ("No project loaded");
+            var currentProject = _projectService.GetCurrentProject();
+            var projectName = currentProject?.DisplayName ?? currentProject?.ID.ToString() ?? ("No project loaded");
 
             Text = $"Helper App ({projectName})";
             projectAuthorTextBox.Text = currentProject?.Author;
             projectNameTextBox.Text = currentProject?.DisplayName;
             projectDescriptionTextBox.Text = currentProject?.Description;
 
-            bool projectLoaded = currentProject != null;
+            var projectLoaded = currentProject != null;
             editProject_MenuItem.Enabled = projectLoaded;
             editProject_MenuItem.Visible = projectLoaded;
             tabControl.Enabled = projectLoaded;
@@ -63,8 +66,8 @@ namespace client_app
 
             if (tabControl.SelectedIndex != -1)
             {
-                TabPage selectedTab = tabControl.TabPages[tabControl.SelectedIndex];
-                string tabName = selectedTab.Name;
+                var selectedTab = tabControl.TabPages[tabControl.SelectedIndex];
+                var tabName = selectedTab.Name;
 
                 foreach (var tabPage in _tabSelectedActions)
                 {

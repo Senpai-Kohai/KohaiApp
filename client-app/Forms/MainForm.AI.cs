@@ -1,12 +1,15 @@
-﻿using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
+using Kohai;
+using Kohai.Models;
+using Kohai.Services;
 
-namespace client_app
+namespace Kohai.Client
 {
     public partial class MainForm
     {
@@ -15,26 +18,26 @@ namespace client_app
             Debug.WriteLine($"Method: {nameof(OnAITabSelected)}");
             await Task.CompletedTask;
 
-            bool messageAllowed = !string.IsNullOrWhiteSpace(_config?.ChatGPTApiKey) && !string.IsNullOrWhiteSpace(_config?.ChatGPTApiUrl);
+            var messageAllowed = _aiService.ServiceRunning;
             aiSendButton.Enabled = messageAllowed;
             aiAssistantSendButton.Enabled = messageAllowed;
 
             if (!messageAllowed)
             {
-                aiRequestTextbox.Text = "Please configure the ChatGPT API key and URI to use this feature.";
+                aiRequestTextbox.Text = "Please ensure the AI Service starts successfully to use this feature.";
                 aiRequestTextbox.ReadOnly = true;
             }
         }
 
-        private async void aiSendButton_Click(object sender, EventArgs e)
+        private async void AISendButton_Click(object sender, EventArgs e)
         {
-            Debug.WriteLine($"Method: {nameof(aiSendButton_Click)}");
+            Debug.WriteLine($"Method: {nameof(AISendButton_Click)}");
             await Task.CompletedTask;
 
-            string requestText = aiRequestTextbox.Text;
+            var requestText = aiRequestTextbox.Text;
             if (!string.IsNullOrWhiteSpace(requestText))
             {
-                string? responseText = await _aiService.GetAICompletionResponseAsync(requestText);
+                var responseText = await _aiService.CompleteChatAsync(requestText);
                 aiResponseTextbox.Text = responseText;
             }
             else
@@ -43,15 +46,15 @@ namespace client_app
             }
         }
 
-        private async void aiAssistantSendButton_Click(object sender, EventArgs e)
+        private async void AIAssistantSendButton_Click(object sender, EventArgs e)
         {
-            Debug.WriteLine($"Method: {nameof(aiAssistantSendButton_Click)}");
+            Debug.WriteLine($"Method: {nameof(AIAssistantSendButton_Click)}");
             await Task.CompletedTask;
 
-            string requestText = aiRequestTextbox.Text;
+            var requestText = aiRequestTextbox.Text;
             if (!string.IsNullOrWhiteSpace(requestText))
             {
-                string? responseText = await _aiService.GetAIAssistantResponseAsync(requestText);
+                var responseText = await _aiService.CreateAssistantMessageAndRunAsync(requestText);
                 aiResponseTextbox.Text = responseText;
             }
             else

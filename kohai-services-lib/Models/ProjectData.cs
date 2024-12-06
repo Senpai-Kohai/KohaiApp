@@ -1,7 +1,8 @@
-﻿using Newtonsoft.Json;
-using System;
+﻿using System;
+using Newtonsoft.Json;
+using Kohai;
 
-namespace client_app
+namespace Kohai.Models
 {
     [JsonObject()]
     public class ProjectData
@@ -17,6 +18,9 @@ namespace client_app
 
         [JsonProperty("description")]
         public string? Description { get; set; }
+
+        [JsonProperty("thread_id")]
+        public string? ThreadID { get; set; }
 
         [JsonProperty("created_at")]
         public DateTime? CreatedAt { get; set; }
@@ -35,9 +39,9 @@ namespace client_app
             LastUpdatedAt = CreatedAt;
         }
 
-        public ProjectData(Guid ID)
+        public ProjectData(Guid id)
         {
-            this.ID = ID;
+            this.ID = id;
 
             CreatedAt = DateTime.UtcNow;
             LastUpdatedAt = CreatedAt;

@@ -1,28 +1,46 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.CodeDom;
+﻿using System;
 using System.Configuration;
 using System.Diagnostics;
 using System.Net;
 using System.Reflection;
+using Kohai.Attributes;
+using Kohai.Services;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
-namespace client_app
+namespace Kohai.Client
 {
     internal static class Program
     {
-        private static IConfiguration? Configuration { get; set; }
-        private static ServiceProvider? ServiceProvider { get; set; }
+        public static IConfiguration? Configuration { get; private set; }
+        public static ServiceProvider? ServiceProvider { get; private set; }
+
+
+        private static CancellationTokenSource? s_shutdownTokenSource = null;
+        public static CancellationTokenSource ShutdownTokenSource
+        {
+            get
+            {
+                s_shutdownTokenSource ??= new CancellationTokenSource();
+
+                return s_shutdownTokenSource;
+            }
+
+            private set { s_shutdownTokenSource = value; }
+        }
 
         /// <summary>
         ///  The main entry point for the application.
         /// </summary>
         [STAThread]
-        static void Main(string[] args)
+        static void Main()
         {
+            ShutdownTokenSource = new CancellationTokenSource();
+
             var builder = new ConfigurationBuilder()
+                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
                 .AddEnvironmentVariables()
-                .AddCommandLine(args);
+                .AddCommandLine(Environment.GetCommandLineArgs());
 
             Configuration = builder.Build();
 
@@ -43,44 +61,36 @@ namespace client_app
 
             // Start the main form of the application
             Application.Run(ServiceProvider.GetRequiredService<MainForm>());
+
+            ShutdownTokenSource.Cancel();
+        }
+
+        public static void InitiateShutdown()
+        {
+            ShutdownTokenSource.Cancel();
         }
 
         private static void ConfigureServices(ServiceCollection services)
         {
+            // CONFIGURATION
             var config = new AppConfiguration();
             Configuration?.Bind(config);
 
-            if (!ValidateConfiguration(config))
+            if (!Kohai.Configuration.IConfiguration.ValidateConfiguration(config))
             {
                 Debug.WriteLine("Configuration validation failed. Exiting application.");
                 Environment.Exit(1);
             }
 
-            services.AddSingleton(config);
+            // SERVICES
+            services.AddSingleton(ShutdownTokenSource);
+            services.AddSingleton<AppConfiguration>(config);
             services.AddSingleton(new HttpClient());
-            services.AddSingleton<ProjectService>();
-            services.AddSingleton<AIService>();
+            services.AddKohaiServices();
+            services.AddKohaiServiceConfiguration();
+
+            // UX
             services.AddSingleton<MainForm>();
-        }
-
-        public static bool ValidateConfiguration(object config)
-        {
-            var configType = config.GetType();
-            var properties = configType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-
-            foreach (var property in properties)
-            {
-                if (property.GetCustomAttribute<RequiredConfigurationAttribute>() != null)
-                {
-                    var value = property.GetValue(config);
-                    if (value == null)
-                    {
-                        Debug.WriteLine($"Configuration property '{property.Name}' is required but is not set.");
-                        return false;
-                    }
-                }
-            }
-            return true;
         }
     }
 }

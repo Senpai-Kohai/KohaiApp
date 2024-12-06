@@ -2,10 +2,9 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Windows.Forms;
-using client_app;
 using Newtonsoft.Json;
 
-namespace client_app
+namespace Kohai.Client
 {
     public partial class MainForm
     {
@@ -74,6 +73,7 @@ namespace client_app
             aiRequestLabel = new Label();
             aiRequestTextbox = new TextBox();
             aiSendButton = new Button();
+            aiAssistantSendButton = new Button();
             taskListTab = new TabPage();
             taskTextBox = new TextBox();
             taskAddButton = new Button();
@@ -81,7 +81,7 @@ namespace client_app
             tasksListBox = new ListBox();
             taskRemoveButton = new Button();
             taskCompleteButton = new Button();
-            aiAssistantSendButton = new Button();
+            aiHistoryListBox = new ListBox();
             menuStrip.SuspendLayout();
             tabControl.SuspendLayout();
             projectTab.SuspendLayout();
@@ -94,7 +94,7 @@ namespace client_app
             menuStrip.Items.AddRange(new ToolStripItem[] { projectsMenu });
             menuStrip.Location = new Point(0, 0);
             menuStrip.Name = "menuStrip";
-            menuStrip.Size = new Size(584, 24);
+            menuStrip.Size = new Size(784, 24);
             menuStrip.TabIndex = 0;
             menuStrip.Text = "menuStrip";
             // 
@@ -112,7 +112,7 @@ namespace client_app
             createProject_MenuItem.Name = "createProject_MenuItem";
             createProject_MenuItem.ShortcutKeyDisplayString = "C";
             createProject_MenuItem.ShortcutKeys = Keys.Alt | Keys.C;
-            createProject_MenuItem.Size = new Size(180, 22);
+            createProject_MenuItem.Size = new Size(124, 22);
             createProject_MenuItem.Text = "&Create";
             createProject_MenuItem.Click += CreateProject_MenuItem_Click;
             // 
@@ -121,7 +121,7 @@ namespace client_app
             editProject_MenuItem.Name = "editProject_MenuItem";
             editProject_MenuItem.ShortcutKeyDisplayString = "E";
             editProject_MenuItem.ShortcutKeys = Keys.Alt | Keys.E;
-            editProject_MenuItem.Size = new Size(180, 22);
+            editProject_MenuItem.Size = new Size(124, 22);
             editProject_MenuItem.Text = "&Edit";
             editProject_MenuItem.Click += EditProject_MenuItem_Click;
             // 
@@ -130,7 +130,7 @@ namespace client_app
             loadProject_MenuItem.Name = "loadProject_MenuItem";
             loadProject_MenuItem.ShortcutKeyDisplayString = "L";
             loadProject_MenuItem.ShortcutKeys = Keys.Alt | Keys.L;
-            loadProject_MenuItem.Size = new Size(180, 22);
+            loadProject_MenuItem.Size = new Size(124, 22);
             loadProject_MenuItem.Text = "&Load";
             loadProject_MenuItem.Click += LoadProject_MenuItem_Click;
             // 
@@ -139,7 +139,7 @@ namespace client_app
             recentProjects_MenuItem.Name = "recentProjects_MenuItem";
             recentProjects_MenuItem.ShortcutKeyDisplayString = "R";
             recentProjects_MenuItem.ShortcutKeys = Keys.Alt | Keys.R;
-            recentProjects_MenuItem.Size = new Size(180, 22);
+            recentProjects_MenuItem.Size = new Size(124, 22);
             recentProjects_MenuItem.Text = "&Recent";
             // 
             // tabControl
@@ -154,7 +154,7 @@ namespace client_app
             tabControl.Name = "tabControl";
             tabControl.Padding = new Point(5, 3);
             tabControl.SelectedIndex = 0;
-            tabControl.Size = new Size(566, 428);
+            tabControl.Size = new Size(766, 428);
             tabControl.TabIndex = 0;
             tabControl.SelectedIndexChanged += TabControl_TabIndexChanged;
             // 
@@ -209,6 +209,7 @@ namespace client_app
             // 
             // aiTab
             // 
+            aiTab.Controls.Add(aiHistoryListBox);
             aiTab.Controls.Add(aiResponseTextbox);
             aiTab.Controls.Add(aiResponseLabel);
             aiTab.Controls.Add(aiRequestLabel);
@@ -218,7 +219,7 @@ namespace client_app
             aiTab.Location = new Point(4, 27);
             aiTab.Name = "aiTab";
             aiTab.Padding = new Padding(3);
-            aiTab.Size = new Size(558, 397);
+            aiTab.Size = new Size(758, 397);
             aiTab.TabIndex = 1;
             aiTab.Text = "Chat";
             aiTab.UseVisualStyleBackColor = true;
@@ -232,14 +233,14 @@ namespace client_app
             aiResponseTextbox.PlaceholderText = "Please make a request.";
             aiResponseTextbox.ReadOnly = true;
             aiResponseTextbox.ScrollBars = ScrollBars.Vertical;
-            aiResponseTextbox.Size = new Size(539, 222);
+            aiResponseTextbox.Size = new Size(556, 222);
             aiResponseTextbox.TabIndex = 3;
             // 
             // aiResponseLabel
             // 
             aiResponseLabel.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right;
             aiResponseLabel.AutoSize = true;
-            aiResponseLabel.Location = new Point(493, 148);
+            aiResponseLabel.Location = new Point(510, 148);
             aiResponseLabel.Name = "aiResponseLabel";
             aiResponseLabel.Size = new Size(57, 15);
             aiResponseLabel.TabIndex = 2;
@@ -260,7 +261,7 @@ namespace client_app
             aiRequestTextbox.Location = new Point(6, 24);
             aiRequestTextbox.Multiline = true;
             aiRequestTextbox.Name = "aiRequestTextbox";
-            aiRequestTextbox.Size = new Size(544, 106);
+            aiRequestTextbox.Size = new Size(561, 106);
             aiRequestTextbox.TabIndex = 0;
             // 
             // aiSendButton
@@ -272,7 +273,18 @@ namespace client_app
             aiSendButton.TabIndex = 4;
             aiSendButton.Text = "Send";
             aiSendButton.UseVisualStyleBackColor = false;
-            aiSendButton.Click += aiSendButton_Click;
+            aiSendButton.Click += AISendButton_Click;
+            // 
+            // aiAssistantSendButton
+            // 
+            aiAssistantSendButton.BackColor = Color.FromArgb(192, 255, 192);
+            aiAssistantSendButton.Location = new Point(116, 133);
+            aiAssistantSendButton.Name = "aiAssistantSendButton";
+            aiAssistantSendButton.Size = new Size(200, 30);
+            aiAssistantSendButton.TabIndex = 5;
+            aiAssistantSendButton.Text = "Send (Assistant)";
+            aiAssistantSendButton.UseVisualStyleBackColor = false;
+            aiAssistantSendButton.Click += AIAssistantSendButton_Click;
             // 
             // taskListTab
             // 
@@ -285,7 +297,7 @@ namespace client_app
             taskListTab.Location = new Point(4, 27);
             taskListTab.Name = "taskListTab";
             taskListTab.Padding = new Padding(3);
-            taskListTab.Size = new Size(558, 397);
+            taskListTab.Size = new Size(758, 397);
             taskListTab.TabIndex = 0;
             taskListTab.Text = "Task List";
             taskListTab.UseVisualStyleBackColor = true;
@@ -295,31 +307,31 @@ namespace client_app
             taskTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             taskTextBox.Location = new Point(6, 6);
             taskTextBox.Name = "taskTextBox";
-            taskTextBox.Size = new Size(468, 23);
+            taskTextBox.Size = new Size(668, 23);
             taskTextBox.TabIndex = 0;
             // 
             // taskAddButton
             // 
             taskAddButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             taskAddButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            taskAddButton.Location = new Point(480, 7);
+            taskAddButton.Location = new Point(680, 7);
             taskAddButton.Name = "taskAddButton";
             taskAddButton.Size = new Size(72, 22);
             taskAddButton.TabIndex = 1;
             taskAddButton.Text = "Add";
             taskAddButton.UseVisualStyleBackColor = true;
-            taskAddButton.Click += taskAddButton_Click;
+            taskAddButton.Click += TaskAddButton_Click;
             // 
             // taskEditButton
             // 
             taskEditButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            taskEditButton.Location = new Point(480, 35);
+            taskEditButton.Location = new Point(680, 35);
             taskEditButton.Name = "taskEditButton";
             taskEditButton.Size = new Size(72, 23);
             taskEditButton.TabIndex = 5;
             taskEditButton.Text = "Edit";
             taskEditButton.UseVisualStyleBackColor = true;
-            taskEditButton.Click += taskEditButton_Click;
+            taskEditButton.Click += TaskEditButton_Click;
             // 
             // tasksListBox
             // 
@@ -328,49 +340,47 @@ namespace client_app
             tasksListBox.ItemHeight = 15;
             tasksListBox.Location = new Point(6, 35);
             tasksListBox.Name = "tasksListBox";
-            tasksListBox.Size = new Size(468, 349);
+            tasksListBox.Size = new Size(668, 349);
             tasksListBox.TabIndex = 2;
             // 
             // taskRemoveButton
             // 
             taskRemoveButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             taskRemoveButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            taskRemoveButton.Location = new Point(480, 64);
+            taskRemoveButton.Location = new Point(680, 64);
             taskRemoveButton.Name = "taskRemoveButton";
             taskRemoveButton.Size = new Size(72, 22);
             taskRemoveButton.TabIndex = 3;
             taskRemoveButton.Text = "Remove";
             taskRemoveButton.UseVisualStyleBackColor = true;
-            taskRemoveButton.Click += taskRemoveButton_Click;
+            taskRemoveButton.Click += TaskRemoveButton_Click;
             // 
             // taskCompleteButton
             // 
             taskCompleteButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             taskCompleteButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            taskCompleteButton.Location = new Point(480, 92);
+            taskCompleteButton.Location = new Point(680, 92);
             taskCompleteButton.Name = "taskCompleteButton";
             taskCompleteButton.Size = new Size(72, 22);
             taskCompleteButton.TabIndex = 4;
             taskCompleteButton.Text = "Complete";
             taskCompleteButton.UseVisualStyleBackColor = true;
-            taskCompleteButton.Click += taskCompleteButton_Click;
+            taskCompleteButton.Click += TaskCompleteButton_Click;
             // 
-            // aiAssistantSendButton
+            // aiHistoryListBox
             // 
-            aiAssistantSendButton.BackColor = Color.FromArgb(192, 255, 192);
-            aiAssistantSendButton.Location = new Point(116, 133);
-            aiAssistantSendButton.Name = "aiAssistantSendButton";
-            aiAssistantSendButton.Size = new Size(200, 30);
-            aiAssistantSendButton.TabIndex = 5;
-            aiAssistantSendButton.Text = "Send (Assistant)";
-            aiAssistantSendButton.UseVisualStyleBackColor = false;
-            aiAssistantSendButton.Click += aiAssistantSendButton_Click;
+            aiHistoryListBox.FormattingEnabled = true;
+            aiHistoryListBox.ItemHeight = 15;
+            aiHistoryListBox.Location = new Point(574, 8);
+            aiHistoryListBox.Name = "aiHistoryListBox";
+            aiHistoryListBox.Size = new Size(178, 379);
+            aiHistoryListBox.TabIndex = 6;
             // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(584, 461);
+            ClientSize = new Size(784, 461);
             Controls.Add(menuStrip);
             Controls.Add(tabControl);
             MainMenuStrip = menuStrip;
@@ -391,5 +401,7 @@ namespace client_app
             ResumeLayout(false);
             PerformLayout();
         }
+
+        private ListBox aiHistoryListBox;
     }
 }

@@ -1,17 +1,19 @@
-﻿using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Newtonsoft.Json;
+using Kohai;
+using Kohai.Models;
+using Kohai.Services;
 
-namespace client_app
+namespace Kohai.Client
 {
     public partial class MainForm
     {
-
         private void PopulateRecentProjectsMenu()
         {
             Debug.WriteLine($"Method: {nameof(PopulateRecentProjectsMenu)}");
@@ -26,9 +28,9 @@ namespace client_app
                     Tag = project.ID
                 };
 
-                projectMenuItem.Click += async (sender, e) => 
+                projectMenuItem.Click += async (sender, e) =>
                 {
-                    Guid? projectID = (Guid?)((ToolStripMenuItem?)sender)?.Tag;
+                    var projectID = (Guid?)((ToolStripMenuItem?)sender)?.Tag;
                     if (projectID == null)
                         return;
 
@@ -50,7 +52,7 @@ namespace client_app
         {
             Debug.WriteLine($"Method: {nameof(SaveProject_Button_Click)}");
 
-            ProjectData? currentProject = _projectService.GetCurrentProject();
+            var currentProject = _projectService.GetCurrentProject();
             if (currentProject == null)
                 return;
 
@@ -89,20 +91,18 @@ namespace client_app
         {
             Debug.WriteLine($"Method: {nameof(LoadProject_MenuItem_Click)}");
 
-            using (var openFileDialog = new OpenFileDialog())
+            using var openFileDialog = new OpenFileDialog();
+            openFileDialog.InitialDirectory = _projectService.ProjectsDirectory;
+            openFileDialog.Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*";
+
+            if (openFileDialog.ShowDialog() == DialogResult.OK)
             {
-                openFileDialog.InitialDirectory = _config.ProjectsDirectory;
-                openFileDialog.Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*";
+                var path = openFileDialog.FileName;
+                var parentDirectoryName = new DirectoryInfo(Path.GetDirectoryName(path) ?? "").Name;
 
-                if (openFileDialog.ShowDialog() == DialogResult.OK)
-                {
-                    string path = openFileDialog.FileName;
-                    string parentDirectoryName = new DirectoryInfo(Path.GetDirectoryName(path) ?? "").Name;
-
-                    if (Guid.TryParse(parentDirectoryName, out Guid projectID))
-                        if (await _projectService.LoadProjectAsync(projectID) == null)
-                            Debug.WriteLine($"Failed to load project [{openFileDialog.FileName}]");
-                }
+                if (Guid.TryParse(parentDirectoryName, out var projectID))
+                    if (await _projectService.LoadProjectAsync(projectID) == null)
+                        Debug.WriteLine($"Failed to load project [{openFileDialog.FileName}]");
             }
         }
 

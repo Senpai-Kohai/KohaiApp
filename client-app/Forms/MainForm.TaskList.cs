@@ -1,28 +1,31 @@
-﻿using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Newtonsoft.Json;
+using Kohai;
+using Kohai.Models;
+using Kohai.Services;
 
-namespace client_app
+namespace Kohai.Client
 {
     public partial class MainForm
     {
-        private List<TaskItem> _tasks = new List<TaskItem>();
+        private List<TaskItem> _tasks = [];
 
         private async void OnTaskListTabSelected()
         {
             await Task.CompletedTask;
         }
 
-        private async void taskAddButton_Click(object sender, EventArgs e)
+        private async void TaskAddButton_Click(object sender, EventArgs e)
         {
-            Debug.WriteLine($"Method: {nameof(taskAddButton_Click)}");
+            Debug.WriteLine($"Method: {nameof(TaskAddButton_Click)}");
 
-            string taskDescription = taskTextBox.Text;
+            var taskDescription = taskTextBox.Text;
             if (!string.IsNullOrWhiteSpace(taskDescription))
             {
                 var task = new TaskItem { Description = taskDescription, IsCompleted = false };
@@ -37,24 +40,22 @@ namespace client_app
             }
         }
 
-        private async void taskEditButton_Click(object sender, EventArgs e)
+        private async void TaskEditButton_Click(object sender, EventArgs e)
         {
-            Debug.WriteLine($"Method: {nameof(taskEditButton_Click)}");
+            Debug.WriteLine($"Method: {nameof(TaskEditButton_Click)}");
 
             if (tasksListBox.SelectedIndex != -1)
             {
-                int selectedIndex = tasksListBox.SelectedIndex;
+                var selectedIndex = tasksListBox.SelectedIndex;
                 var task = _tasks[selectedIndex];
 
-                using (var editTaskForm = new EditTaskForm(task.Description ?? "", task.IsCompleted))
+                using var editTaskForm = new EditTaskForm(task.Description ?? "", task.IsCompleted);
+                if (editTaskForm.ShowDialog() == DialogResult.OK)
                 {
-                    if (editTaskForm.ShowDialog() == DialogResult.OK)
-                    {
-                        task.Description = editTaskForm.TaskDescription;
-                        task.IsCompleted = editTaskForm.IsCompleted;
-                        tasksListBox.Items[selectedIndex] = task.Description + (task.IsCompleted ? " (Completed)" : string.Empty);
-                        await SaveTasks();
-                    }
+                    task.Description = editTaskForm.TaskDescription;
+                    task.IsCompleted = editTaskForm.IsCompleted;
+                    tasksListBox.Items[selectedIndex] = task.Description + (task.IsCompleted ? " (Completed)" : string.Empty);
+                    await SaveTasks();
                 }
             }
             else
@@ -63,9 +64,9 @@ namespace client_app
             }
         }
 
-        private async void taskRemoveButton_Click(object sender, EventArgs e)
+        private async void TaskRemoveButton_Click(object sender, EventArgs e)
         {
-            Debug.WriteLine($"Method: {nameof(taskRemoveButton_Click)}");
+            Debug.WriteLine($"Method: {nameof(TaskRemoveButton_Click)}");
 
             if (tasksListBox.SelectedIndex != -1)
             {
@@ -79,9 +80,9 @@ namespace client_app
             }
         }
 
-        private async void taskCompleteButton_Click(object sender, EventArgs e)
+        private async void TaskCompleteButton_Click(object sender, EventArgs e)
         {
-            Debug.WriteLine($"Method: {nameof(taskCompleteButton_Click)}");
+            Debug.WriteLine($"Method: {nameof(TaskCompleteButton_Click)}");
             await Task.CompletedTask;
 
             if (tasksListBox.SelectedIndex != -1)
@@ -109,18 +110,24 @@ namespace client_app
         {
             Debug.WriteLine($"Method: {nameof(SaveTasks)}");
 
+            if (!_projectService.ServiceRunning || _projectService.TasksFilename == null)
+                return;
+
             var json = JsonConvert.SerializeObject(_tasks, Formatting.Indented);
-            await File.WriteAllTextAsync(_config.TasksFilename, json).ConfigureAwait(false);
+            await File.WriteAllTextAsync(_projectService.TasksFilename, json).ConfigureAwait(false);
         }
 
         private async Task LoadTasks()
         {
             Debug.WriteLine($"Method: {nameof(LoadTasks)}");
 
-            if (File.Exists(_config.TasksFilename))
+            if (!_projectService.ServiceRunning || _projectService.TasksFilename == null)
+                return;
+
+            if (File.Exists(_projectService.TasksFilename))
             {
-                var json = await File.ReadAllTextAsync(_config.TasksFilename).ConfigureAwait(false);
-                _tasks = JsonConvert.DeserializeObject<List<TaskItem>>(json) ?? new List<TaskItem>();
+                var json = await File.ReadAllTextAsync(_projectService.TasksFilename).ConfigureAwait(false);
+                _tasks = JsonConvert.DeserializeObject<List<TaskItem>>(json) ?? [];
                 foreach (var task in _tasks)
                 {
                     tasksListBox.Items.Add(task.Description + (task.IsCompleted ? " (Completed)" : string.Empty));
@@ -128,7 +135,7 @@ namespace client_app
             }
             else
             {
-                _tasks = new List<TaskItem>();
+                _tasks = [];
             }
         }
     }
