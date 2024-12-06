@@ -6,9 +6,11 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Newtonsoft.Json;
-using client_app.Models;
+using Kohai;
+using Kohai.Models;
+using Kohai.Services;
 
-namespace client_app
+namespace Kohai.Client
 {
     public partial class MainForm
     {
@@ -108,17 +110,23 @@ namespace client_app
         {
             Debug.WriteLine($"Method: {nameof(SaveTasks)}");
 
+            if (!_projectService.ServiceRunning || _projectService.TasksFilename == null)
+                return;
+
             var json = JsonConvert.SerializeObject(_tasks, Formatting.Indented);
-            await File.WriteAllTextAsync(_config.TasksFilename, json).ConfigureAwait(false);
+            await File.WriteAllTextAsync(_projectService.TasksFilename, json).ConfigureAwait(false);
         }
 
         private async Task LoadTasks()
         {
             Debug.WriteLine($"Method: {nameof(LoadTasks)}");
 
-            if (File.Exists(_config.TasksFilename))
+            if (!_projectService.ServiceRunning || _projectService.TasksFilename == null)
+                return;
+
+            if (File.Exists(_projectService.TasksFilename))
             {
-                var json = await File.ReadAllTextAsync(_config.TasksFilename).ConfigureAwait(false);
+                var json = await File.ReadAllTextAsync(_projectService.TasksFilename).ConfigureAwait(false);
                 _tasks = JsonConvert.DeserializeObject<List<TaskItem>>(json) ?? [];
                 foreach (var task in _tasks)
                 {

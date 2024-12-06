@@ -4,19 +4,21 @@ using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
-using System.Windows.Forms;
-using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
-using client_app.Models;
+using Kohai;
+using Kohai.Configuration;
+using Kohai.Models;
+using OpenAI;
+using System.Net.Http;
 
-namespace client_app.Services
+namespace Kohai.Services
 {
-    public class ProjectService
+    public class ProjectService : ServiceBase<ProjectServiceConfiguration>
     {
+        public override bool ServiceRunning => !_shutdownTokenSource.IsCancellationRequested;
         public event Action<ProjectData?>? OnCurrentProjectChanged;
-
-        private readonly AppConfiguration _config;
         private readonly List<ProjectData> _recentProjects = [];
+        private readonly CancellationTokenSource _shutdownTokenSource;
 
         private ProjectData? _currentProject = null;
         public ProjectData? CurrentProject
@@ -36,17 +38,31 @@ namespace client_app.Services
             }
         }
 
-        public ProjectService(AppConfiguration config)
-        {
-            _config = config;
+        // expose configuration (readonly)
+        public string? ProjectsDirectory => ServiceConfiguration.ProjectsDirectory;
+        public bool LoadLastProjectAtStartup => ServiceConfiguration.LoadLastProjectOnStartup;
+        public string? RecentProjectsFilename => ServiceConfiguration.RecentProjectsFilename;
+        public string? TasksFilename => ServiceConfiguration.TasksFilename;
 
-            if (!Directory.Exists(config.ProjectsDirectory))
-                Directory.CreateDirectory(config.ProjectsDirectory);
+        public ProjectService(CancellationTokenSource shutdownTokenSource)
+        {
+            _shutdownTokenSource = shutdownTokenSource ?? new CancellationTokenSource();
+
+            if (!IConfiguration.ValidateConfiguration(ServiceConfiguration))
+            {
+                Debug.WriteLine($"Error starting Project service: required configuration not set.");
+                _shutdownTokenSource.Cancel();
+
+                return;
+            }
+
+            if (!Directory.Exists(ServiceConfiguration.ProjectsDirectory))
+                Directory.CreateDirectory(ServiceConfiguration.ProjectsDirectory);
 
             LoadRecentProjects();
 
             // load last project, if configured to do so
-            if (config.LoadLastProjectOnStartup && _recentProjects.Count > 0)
+            if (ServiceConfiguration.LoadLastProjectOnStartup && _recentProjects.Count > 0)
                 CurrentProject = _recentProjects[0];
         }
 
@@ -162,7 +178,7 @@ namespace client_app.Services
             {
                 // potentially slow-
                 // iterates all projects for one with a matching name, and loads if found
-                foreach (var directory in Directory.GetDirectories(_config.ProjectsDirectory))
+                foreach (var directory in Directory.GetDirectories(ServiceConfiguration.ProjectsDirectory))
                 {
                     var projectFilePath = Path.Combine(directory, "project.json");
                     if (File.Exists(projectFilePath))
@@ -194,7 +210,7 @@ namespace client_app.Services
         {
             Debug.WriteLine($"Service: [{nameof(ProjectService)}] Method: [{nameof(GetProjectPath)}]");
 
-            return Path.Combine(_config.ProjectsDirectory, id.ToString());
+            return Path.Combine(ServiceConfiguration.ProjectsDirectory, id.ToString());
         }
 
         private void AddToRecentProjects(ProjectData project)
@@ -227,9 +243,9 @@ namespace client_app.Services
             {
                 _recentProjects.Clear();
 
-                if (File.Exists(_config.RecentProjectsFilename))
+                if (File.Exists(ServiceConfiguration.RecentProjectsFilename))
                 {
-                    var recentIDsString = File.ReadAllTextAsync(_config.RecentProjectsFilename).Result;
+                    var recentIDsString = File.ReadAllTextAsync(ServiceConfiguration.RecentProjectsFilename).Result;
                     var recentIDs = JsonConvert.DeserializeObject<List<string>>(recentIDsString);
                     if (recentIDs != null)
                     {
@@ -266,7 +282,7 @@ namespace client_app.Services
                 var recentProjectIDs = _recentProjects.Select(p => p.ID.ToString()).ToList();
 
                 var json = JsonConvert.SerializeObject(recentProjectIDs, Formatting.Indented);
-                File.WriteAllText(_config.RecentProjectsFilename, json);
+                File.WriteAllText(ServiceConfiguration.RecentProjectsFilename, json);
             }
             catch (Exception exc)
             {

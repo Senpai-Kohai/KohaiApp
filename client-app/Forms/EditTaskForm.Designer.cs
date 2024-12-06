@@ -1,4 +1,8 @@
-﻿namespace client_app
+﻿using Kohai;
+using Kohai.Models;
+using System.Windows.Forms;
+
+namespace Kohai.Client
 {
     partial class EditTaskForm
     {

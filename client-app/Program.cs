@@ -1,16 +1,14 @@
 ﻿using System;
-using System.CodeDom;
 using System.Configuration;
 using System.Diagnostics;
 using System.Net;
 using System.Reflection;
-using client_app.Attributes;
-using client_app.Services;
-using client_app.Services.Configuration;
+using Kohai.Attributes;
+using Kohai.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace client_app
+namespace Kohai.Client
 {
     internal static class Program
     {
@@ -74,47 +72,25 @@ namespace client_app
 
         private static void ConfigureServices(ServiceCollection services)
         {
+            // CONFIGURATION
             var config = new AppConfiguration();
             Configuration?.Bind(config);
 
-            if (!ConfigurationUtils.ValidateConfiguration(config))
+            if (!Kohai.Configuration.IConfiguration.ValidateConfiguration(config))
             {
                 Debug.WriteLine("Configuration validation failed. Exiting application.");
                 Environment.Exit(1);
             }
 
+            // SERVICES
+            services.AddSingleton(ShutdownTokenSource);
             services.AddSingleton<AppConfiguration>(config);
             services.AddSingleton(new HttpClient());
-            services.AddSingleton<ProjectService>();
-            services.AddSingleton<AIService>();
+            services.AddKohaiServices();
+            services.AddKohaiServiceConfiguration();
+
+            // UX
             services.AddSingleton<MainForm>();
-
-            // add all service configuration types to service registry, so forms/etc can easily use them via constructors
-            foreach (var type in Assembly.GetExecutingAssembly().GetTypes())
-            {
-                if (type.IsAbstract || type.IsNotPublic || type.IsValueType)
-                    continue;
-
-                try
-                {
-                    var configAttr = type.GetCustomAttribute<ServiceConfigurationAttribute>();
-                    if (configAttr == null)
-                        continue;
-
-                    var serviceConfig = Activator.CreateInstance(type);
-                    if (serviceConfig == null)
-                        continue;
-
-                    Debug.WriteLine($"Adding service configuration type [{type.Name}] directly to the service provider.");
-
-                    ConfigurationUtils.LoadConfiguration(serviceConfig, configAttr?.SectionName);
-                    services.AddSingleton(type, serviceConfig);
-                }
-                catch (Exception exc)
-                {
-                    Debug.WriteLine($"An exception occurred trying to add service configuration type [{type.Name}] to the service provider: {exc}.");
-                }
-            }
         }
     }
 }

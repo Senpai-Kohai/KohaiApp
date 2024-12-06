@@ -8,9 +8,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using client_app.Models;
+using Kohai;
+using Kohai.Models;
+using Kohai.Services;
 
-namespace client_app
+namespace Kohai.Client
 {
     public partial class EditTaskForm : Form
     {

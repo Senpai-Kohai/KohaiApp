@@ -4,15 +4,15 @@ using System.Linq;
 using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Threading.Tasks;
-using client_app.Attributes;
+using Kohai.Attributes;
 
-namespace client_app.Services.Configuration
+namespace Kohai.Configuration
 {
     /// <summary>
     /// Configuration for the AI Service.
     /// </summary>
     [ServiceConfiguration("AI")]
-    public class AIServiceConfiguration : AppConfiguration
+    public class AIServiceConfiguration : IConfiguration
     {
         [RequiredConfiguration]
         public string? ChatGPTApiKey { get; set; }

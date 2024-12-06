@@ -4,15 +4,21 @@ using System.Text;
 using OpenAI.Assistants;
 using System.Linq;
 using OpenAI;
-using client_app.Services.Configuration;
+using Kohai;
+using Kohai.Configuration;
+using Kohai.Models;
 
-namespace client_app.Services
+namespace Kohai.Services
 {
+    using Configuration;
+
     /// <summary>
     /// Responsible for wrapping the OpenAI SDK / client.
     /// </summary>
     public class AIService : ServiceBase<AIServiceConfiguration>
     {
+        public override bool ServiceRunning => _openAIClient != null && _httpClient != null && !_shutdownTokenSource.IsCancellationRequested;
+
         private OpenAI.Chat.ChatClient? _chatClient;
 #pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
         private AssistantClient? _assistantClient;
@@ -25,16 +31,17 @@ namespace client_app.Services
         private string? _currentAssistantName;
         private string? _currentAssistantID;
         private string? _currentThreadID;
+        private readonly CancellationTokenSource _shutdownTokenSource;
 
-        public override bool ServiceRunning => _openAIClient != null && _httpClient != null;
-
-        public AIService(HttpClient httpClient, ProjectService projectService)
+        public AIService(HttpClient httpClient, ProjectService projectService, CancellationTokenSource shutdownTokenSource)
         {
+            _shutdownTokenSource = shutdownTokenSource ?? new CancellationTokenSource();
             _projectService = projectService;
 
-            if (!ConfigurationUtils.ValidateConfiguration(ServiceConfiguration))
+            if (!IConfiguration.ValidateConfiguration(ServiceConfiguration))
             {
                 Debug.WriteLine($"Error starting AI service: required configuration not set.");
+                _shutdownTokenSource.Cancel();
 
                 return;
             }
@@ -79,7 +86,7 @@ namespace client_app.Services
                 {
                     EndUserId = user ?? "user"
                 };
-                var result = await _chatClient.CompleteChatAsync([new OpenAI.Chat.AssistantChatMessage(message)], apiOptions, Program.ShutdownTokenSource.Token);
+                var result = await _chatClient.CompleteChatAsync([new OpenAI.Chat.AssistantChatMessage(message)], apiOptions, _shutdownTokenSource.Token);
 
                 return result.Value.Content.FirstOrDefault()?.Text;
             }
@@ -124,7 +131,7 @@ namespace client_app.Services
                     PageSizeLimit = 100,
                     Order = AssistantCollectionOrder.Descending
                 };
-                var collResult = _assistantClient.GetAssistantsAsync(requestOptions, Program.ShutdownTokenSource.Token);
+                var collResult = _assistantClient.GetAssistantsAsync(requestOptions, _shutdownTokenSource.Token);
 
                 try
                 {
@@ -203,7 +210,7 @@ namespace client_app.Services
                 {
                     Name = name
                 };
-                var result = await _assistantClient.CreateAssistantAsync(model, apiOptions, Program.ShutdownTokenSource.Token);
+                var result = await _assistantClient.CreateAssistantAsync(model, apiOptions, _shutdownTokenSource.Token);
                 var newAssistantID = result.Value.Id;
 
                 if (!string.IsNullOrWhiteSpace(newAssistantID))
@@ -271,7 +278,7 @@ namespace client_app.Services
                 // just for debugging purposes
                 apiOptions.Metadata["owner"] = "Kohai";
 
-                var result = await _assistantClient.CreateThreadAsync(apiOptions, Program.ShutdownTokenSource.Token);
+                var result = await _assistantClient.CreateThreadAsync(apiOptions, _shutdownTokenSource.Token);
 
                 _currentThreadID = result.Value.Id;
 
@@ -305,7 +312,7 @@ namespace client_app.Services
 
             try
             {
-                var result = await _assistantClient.DeleteThreadAsync(threadID, Program.ShutdownTokenSource.Token);
+                var result = await _assistantClient.DeleteThreadAsync(threadID, _shutdownTokenSource.Token);
 
                 return true;
             }
@@ -401,7 +408,7 @@ namespace client_app.Services
                 // just for debugging purposes
                 apiOptions.Metadata["user"] = "Senpai";
 
-                var result = await _assistantClient.CreateMessageAsync(threadID, role, messageContents, apiOptions, Program.ShutdownTokenSource.Token);
+                var result = await _assistantClient.CreateMessageAsync(threadID, role, messageContents, apiOptions, _shutdownTokenSource.Token);
 
                 return true;
             }
@@ -546,7 +553,7 @@ namespace client_app.Services
 
             try
             {
-                var results = _assistantClient.GetMessagesAsync(threadID, new MessageCollectionOptions() { Order = listOrder }, Program.ShutdownTokenSource.Token);
+                var results = _assistantClient.GetMessagesAsync(threadID, new MessageCollectionOptions() { Order = listOrder }, _shutdownTokenSource.Token);
 
                 var messages = new List<string>();
 
@@ -620,7 +627,7 @@ namespace client_app.Services
                 // just for debugging purposes
                 apiOptions.Metadata["owner"] = "Kohai";
 
-                var result = await _assistantClient.CreateRunAsync(threadID, assistantID, apiOptions, Program.ShutdownTokenSource.Token);
+                var result = await _assistantClient.CreateRunAsync(threadID, assistantID, apiOptions, _shutdownTokenSource.Token);
 
                 return result?.Value?.Id;
             }
@@ -697,7 +704,7 @@ namespace client_app.Services
 
             try
             {
-                var result = await _assistantClient.GetRunAsync(threadID, runID, Program.ShutdownTokenSource.Token);
+                var result = await _assistantClient.GetRunAsync(threadID, runID, _shutdownTokenSource.Token);
 
                 return result?.Value.Status.ToString();
             }

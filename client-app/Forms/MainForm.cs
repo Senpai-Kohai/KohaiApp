@@ -2,24 +2,23 @@
 using System.Diagnostics;
 using System.Net.Http;
 using System.Text;
-using client_app.Services;
-using client_app.Services.Configuration;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using client_app.Models;
+using Kohai;
+using Kohai.Models;
+using Kohai.Services;
+using Kohai.Configuration;
 
-namespace client_app
+namespace Kohai.Client
 {
     public partial class MainForm : Form
     {
         private readonly ProjectService _projectService;
         private readonly AIService _aiService;
-        private readonly AIServiceConfiguration _config;
         private readonly Dictionary<TabPage, Action> _tabSelectedActions = [];
 
-        public MainForm(ProjectService projectService, AIService aiService, AIServiceConfiguration config)
+        public MainForm(ProjectService projectService, AIService aiService)
         {
-            _config = config ?? throw new ArgumentNullException(nameof(config));
             _projectService = projectService ?? throw new ArgumentNullException(nameof(projectService));
             _aiService = aiService ?? throw new ArgumentNullException(nameof(aiService));
 

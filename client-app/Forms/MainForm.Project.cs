@@ -6,9 +6,11 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Newtonsoft.Json;
-using client_app.Models;
+using Kohai;
+using Kohai.Models;
+using Kohai.Services;
 
-namespace client_app
+namespace Kohai.Client
 {
     public partial class MainForm
     {
@@ -90,7 +92,7 @@ namespace client_app
             Debug.WriteLine($"Method: {nameof(LoadProject_MenuItem_Click)}");
 
             using var openFileDialog = new OpenFileDialog();
-            openFileDialog.InitialDirectory = _config.ProjectsDirectory;
+            openFileDialog.InitialDirectory = _projectService.ProjectsDirectory;
             openFileDialog.Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*";
 
             if (openFileDialog.ShowDialog() == DialogResult.OK)

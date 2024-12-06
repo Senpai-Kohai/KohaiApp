@@ -5,9 +5,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
-using client_app.Models;
+using Kohai;
+using Kohai.Models;
+using Kohai.Services;
 
-namespace client_app
+namespace Kohai.Client
 {
     public partial class MainForm
     {
@@ -16,13 +18,13 @@ namespace client_app
             Debug.WriteLine($"Method: {nameof(OnAITabSelected)}");
             await Task.CompletedTask;
 
-            var messageAllowed = !string.IsNullOrWhiteSpace(_config?.ChatGPTApiKey) && !string.IsNullOrWhiteSpace(_config?.ChatGPTApiUrl);
+            var messageAllowed = _aiService.ServiceRunning;
             aiSendButton.Enabled = messageAllowed;
             aiAssistantSendButton.Enabled = messageAllowed;
 
             if (!messageAllowed)
             {
-                aiRequestTextbox.Text = "Please configure the ChatGPT API key and URI to use this feature.";
+                aiRequestTextbox.Text = "Please ensure the AI Service starts successfully to use this feature.";
                 aiRequestTextbox.ReadOnly = true;
             }
         }

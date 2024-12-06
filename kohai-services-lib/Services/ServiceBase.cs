@@ -4,9 +4,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Reflection;
-using client_app.Attributes;
+using Kohai;
+using Kohai.Configuration;
+using Kohai.Attributes;
 
-namespace client_app.Services
+namespace Kohai.Services
 {
     public abstract class ServiceBase<TConfig> : IService<TConfig>
         where TConfig : class, new()
@@ -17,7 +19,7 @@ namespace client_app.Services
             get
             {
                 var sectionName = GetType().GetCustomAttribute<ServiceConfigurationAttribute>(false)?.SectionName;
-                _serviceConfiguration ??= ConfigurationUtils.LoadConfiguration<TConfig>(sectionName);
+                _serviceConfiguration ??= IConfiguration.LoadConfiguration<TConfig>(sectionName);
 
                 return _serviceConfiguration;
             }

@@ -1,7 +1,8 @@
 ﻿using System;
 using Newtonsoft.Json;
+using Kohai;
 
-namespace client_app.Models
+namespace Kohai.Models
 {
     [JsonObject()]
     public class ProjectData

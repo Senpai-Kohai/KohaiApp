@@ -1,16 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
-using client_app.Attributes;
+using Kohai;
+using Kohai.Attributes;
 using Microsoft.Extensions.Configuration;
 
-namespace client_app
+namespace Kohai.Configuration
 {
-    public static class ConfigurationUtils
+    public interface IConfiguration
     {
         /// <summary>
         /// Create a "switch name" from a "property name"-
@@ -156,7 +156,7 @@ namespace client_app
                     var value = property.GetValue(config);
                     if (value == null)
                     {
-                        Debug.WriteLine($"Configuration property '{property.Name}' is required but is not set.");
+                        System.Diagnostics.Debug.WriteLine($"Configuration property '{property.Name}' is required but is not set.");
                         return false;
                     }
                 }
