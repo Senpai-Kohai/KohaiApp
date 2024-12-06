@@ -12,6 +12,8 @@ namespace Kohai.Services
     public interface IService
     {
         bool ServiceRunning { get; }
+        Task ServiceStarted();
+        Task ServiceStopped();
     }
 
     public interface IService<TConfig> : IService

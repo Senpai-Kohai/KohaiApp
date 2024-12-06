@@ -12,22 +12,24 @@ namespace Kohai.Client
 {
     internal static class Program
     {
-        public static IConfiguration? Configuration { get; private set; }
-        public static ServiceProvider? ServiceProvider { get; private set; }
+        private static ServiceProvider? s_serviceProvider;
+        private static AppConfiguration? s_appConfiguration;
+        private static readonly CancellationTokenSource s_shutdownTokenSource = new();
 
-
-        private static CancellationTokenSource? s_shutdownTokenSource = null;
-        public static CancellationTokenSource ShutdownTokenSource
+        public static AppConfiguration? AppConfiguration
         {
-            get
-            {
-                s_shutdownTokenSource ??= new CancellationTokenSource();
-
-                return s_shutdownTokenSource;
-            }
-
-            private set { s_shutdownTokenSource = value; }
+            get { return s_appConfiguration; }
+            private set { s_appConfiguration = value; }
         }
+
+        public static ServiceProvider? ServiceProvider
+        {
+            get { return s_serviceProvider; }
+            private set { s_serviceProvider = value; }
+        }
+
+
+        public static bool ShuttingDown => s_shutdownTokenSource.IsCancellationRequested;
 
         /// <summary>
         ///  The main entry point for the application.
@@ -35,62 +37,67 @@ namespace Kohai.Client
         [STAThread]
         static void Main()
         {
-            ShutdownTokenSource = new CancellationTokenSource();
+            AppConfiguration = InitializeConfiguration();
+            if (!ValidateConfiguration(AppConfiguration))
+            {
+                Debug.WriteLine("App configuration validation failed. Exiting application.");
+                Environment.Exit(1);
+            }
 
+            var services = new ServiceCollection();
+            ConfigureServices(services);
+
+            ServiceProvider = services.BuildServiceProvider();
+            ServiceProvider.StartKohaiServices();
+
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            Application.SetHighDpiMode(HighDpiMode.SystemAware);
+            Application.Run(ServiceProvider.GetRequiredService<MainForm>());
+
+            InitiateShutdown();
+        }
+
+        public static void InitiateShutdown()
+        {
+            s_shutdownTokenSource.Cancel();
+        }
+
+        private static AppConfiguration InitializeConfiguration()
+        {
             var builder = new ConfigurationBuilder()
                 .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
                 .AddEnvironmentVariables()
                 .AddCommandLine(Environment.GetCommandLineArgs());
 
-            Configuration = builder.Build();
-
-            // Set up dependency injection
-            var services = new ServiceCollection();
-            ConfigureServices(services);
-
-            ServiceProvider = services.BuildServiceProvider();
-
-            // Enable visual styles for the application
-            Application.EnableVisualStyles();
-
-            // Ensure text rendering uses GDI+
-            Application.SetCompatibleTextRenderingDefault(false);
-
-            // Set high DPI mode to improve appearance on high-resolution displays
-            Application.SetHighDpiMode(HighDpiMode.SystemAware);
-
-            // Start the main form of the application
-            Application.Run(ServiceProvider.GetRequiredService<MainForm>());
-
-            ShutdownTokenSource.Cancel();
-        }
-
-        public static void InitiateShutdown()
-        {
-            ShutdownTokenSource.Cancel();
-        }
-
-        private static void ConfigureServices(ServiceCollection services)
-        {
-            // CONFIGURATION
+            var configRoot = builder.Build();
             var config = new AppConfiguration();
-            Configuration?.Bind(config);
 
-            if (!Kohai.Configuration.IConfiguration.ValidateConfiguration(config))
-            {
-                Debug.WriteLine("Configuration validation failed. Exiting application.");
-                Environment.Exit(1);
-            }
+            configRoot?.Bind(config);
 
-            // SERVICES
-            services.AddSingleton(ShutdownTokenSource);
-            services.AddSingleton<AppConfiguration>(config);
-            services.AddSingleton(new HttpClient());
-            services.AddKohaiServices();
-            services.AddKohaiServiceConfiguration();
+            return config;
+        }
 
-            // UX
-            services.AddSingleton<MainForm>();
+        private static bool ValidateConfiguration(AppConfiguration? appConfiguration)
+        {
+            if (appConfiguration == null || !Configuration.IConfiguration.ValidateConfiguration(appConfiguration))
+                return false;
+
+            return true;
+        }
+
+        private static void ConfigureServices(ServiceCollection servicesCollection)
+        {
+            if (AppConfiguration != null)
+                servicesCollection.AddSingleton(AppConfiguration);
+
+            servicesCollection.AddSingleton(s_shutdownTokenSource);
+            servicesCollection.AddSingleton(new HttpClient());
+
+            servicesCollection.AddKohaiServices();
+            servicesCollection.AddKohaiServiceConfiguration();
+
+            servicesCollection.AddSingleton<MainForm>();
         }
     }
 }

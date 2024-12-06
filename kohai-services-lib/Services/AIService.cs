@@ -17,7 +17,7 @@ namespace Kohai.Services
     /// </summary>
     public class AIService : ServiceBase<AIServiceConfiguration>
     {
-        public override bool ServiceRunning => _openAIClient != null && _httpClient != null && !_shutdownTokenSource.IsCancellationRequested;
+        public override bool ServiceRunning => _openAIClient != null && _httpClient != null && base.ServiceRunning;
 
         private OpenAI.Chat.ChatClient? _chatClient;
 #pragma warning disable OPENAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates.
@@ -31,17 +31,16 @@ namespace Kohai.Services
         private string? _currentAssistantName;
         private string? _currentAssistantID;
         private string? _currentThreadID;
-        private readonly CancellationTokenSource _shutdownTokenSource;
 
         public AIService(HttpClient httpClient, ProjectService projectService, CancellationTokenSource shutdownTokenSource)
+            : base(shutdownTokenSource)
         {
-            _shutdownTokenSource = shutdownTokenSource ?? new CancellationTokenSource();
             _projectService = projectService;
 
             if (!IConfiguration.ValidateConfiguration(ServiceConfiguration))
             {
                 Debug.WriteLine($"Error starting AI service: required configuration not set.");
-                _shutdownTokenSource.Cancel();
+                shutdownTokenSource.Cancel();
 
                 return;
             }
@@ -86,7 +85,7 @@ namespace Kohai.Services
                 {
                     EndUserId = user ?? "user"
                 };
-                var result = await _chatClient.CompleteChatAsync([new OpenAI.Chat.AssistantChatMessage(message)], apiOptions, _shutdownTokenSource.Token);
+                var result = await _chatClient.CompleteChatAsync([new OpenAI.Chat.AssistantChatMessage(message)], apiOptions, shutdownTokenSource.Token);
 
                 return result.Value.Content.FirstOrDefault()?.Text;
             }
@@ -131,7 +130,7 @@ namespace Kohai.Services
                     PageSizeLimit = 100,
                     Order = AssistantCollectionOrder.Descending
                 };
-                var collResult = _assistantClient.GetAssistantsAsync(requestOptions, _shutdownTokenSource.Token);
+                var collResult = _assistantClient.GetAssistantsAsync(requestOptions, shutdownTokenSource.Token);
 
                 try
                 {
@@ -210,7 +209,7 @@ namespace Kohai.Services
                 {
                     Name = name
                 };
-                var result = await _assistantClient.CreateAssistantAsync(model, apiOptions, _shutdownTokenSource.Token);
+                var result = await _assistantClient.CreateAssistantAsync(model, apiOptions, shutdownTokenSource.Token);
                 var newAssistantID = result.Value.Id;
 
                 if (!string.IsNullOrWhiteSpace(newAssistantID))
@@ -278,7 +277,7 @@ namespace Kohai.Services
                 // just for debugging purposes
                 apiOptions.Metadata["owner"] = "Kohai";
 
-                var result = await _assistantClient.CreateThreadAsync(apiOptions, _shutdownTokenSource.Token);
+                var result = await _assistantClient.CreateThreadAsync(apiOptions, shutdownTokenSource.Token);
 
                 _currentThreadID = result.Value.Id;
 
@@ -312,7 +311,7 @@ namespace Kohai.Services
 
             try
             {
-                var result = await _assistantClient.DeleteThreadAsync(threadID, _shutdownTokenSource.Token);
+                var result = await _assistantClient.DeleteThreadAsync(threadID, shutdownTokenSource.Token);
 
                 return true;
             }
@@ -408,7 +407,7 @@ namespace Kohai.Services
                 // just for debugging purposes
                 apiOptions.Metadata["user"] = "Senpai";
 
-                var result = await _assistantClient.CreateMessageAsync(threadID, role, messageContents, apiOptions, _shutdownTokenSource.Token);
+                var result = await _assistantClient.CreateMessageAsync(threadID, role, messageContents, apiOptions, shutdownTokenSource.Token);
 
                 return true;
             }
@@ -553,7 +552,7 @@ namespace Kohai.Services
 
             try
             {
-                var results = _assistantClient.GetMessagesAsync(threadID, new MessageCollectionOptions() { Order = listOrder }, _shutdownTokenSource.Token);
+                var results = _assistantClient.GetMessagesAsync(threadID, new MessageCollectionOptions() { Order = listOrder }, shutdownTokenSource.Token);
 
                 var messages = new List<string>();
 
@@ -627,7 +626,7 @@ namespace Kohai.Services
                 // just for debugging purposes
                 apiOptions.Metadata["owner"] = "Kohai";
 
-                var result = await _assistantClient.CreateRunAsync(threadID, assistantID, apiOptions, _shutdownTokenSource.Token);
+                var result = await _assistantClient.CreateRunAsync(threadID, assistantID, apiOptions, shutdownTokenSource.Token);
 
                 return result?.Value?.Id;
             }
@@ -704,7 +703,7 @@ namespace Kohai.Services
 
             try
             {
-                var result = await _assistantClient.GetRunAsync(threadID, runID, _shutdownTokenSource.Token);
+                var result = await _assistantClient.GetRunAsync(threadID, runID, shutdownTokenSource.Token);
 
                 return result?.Value.Status.ToString();
             }

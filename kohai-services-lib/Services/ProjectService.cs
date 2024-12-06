@@ -15,10 +15,10 @@ namespace Kohai.Services
 {
     public class ProjectService : ServiceBase<ProjectServiceConfiguration>
     {
-        public override bool ServiceRunning => !_shutdownTokenSource.IsCancellationRequested;
+        public override bool ServiceRunning => base.ServiceRunning;
+
         public event Action<ProjectData?>? OnCurrentProjectChanged;
         private readonly List<ProjectData> _recentProjects = [];
-        private readonly CancellationTokenSource _shutdownTokenSource;
 
         private ProjectData? _currentProject = null;
         public ProjectData? CurrentProject
@@ -45,13 +45,12 @@ namespace Kohai.Services
         public string? TasksFilename => ServiceConfiguration.TasksFilename;
 
         public ProjectService(CancellationTokenSource shutdownTokenSource)
+            : base(shutdownTokenSource)
         {
-            _shutdownTokenSource = shutdownTokenSource ?? new CancellationTokenSource();
-
             if (!IConfiguration.ValidateConfiguration(ServiceConfiguration))
             {
                 Debug.WriteLine($"Error starting Project service: required configuration not set.");
-                _shutdownTokenSource.Cancel();
+                base.shutdownTokenSource.Cancel();
 
                 return;
             }
@@ -64,6 +63,23 @@ namespace Kohai.Services
             // load last project, if configured to do so
             if (ServiceConfiguration.LoadLastProjectOnStartup && _recentProjects.Count > 0)
                 CurrentProject = _recentProjects[0];
+        }
+
+        public override async Task ServiceStarted()
+        {
+            await Task.CompletedTask;
+
+            Debug.WriteLine("!");
+        }
+
+        public override async Task ServiceStopped()
+        {
+            await Task.CompletedTask;
+
+            if (CurrentProject != null)
+                await SaveProjectAsync(CurrentProject);
+
+            SaveRecentProjects();
         }
 
         public async Task<ProjectData?> CreateProjectAsync(string? name = null, string? author = null, string? description = null)

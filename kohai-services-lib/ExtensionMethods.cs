@@ -13,6 +13,14 @@ namespace Kohai
 {
     public static class ExtensionMethods
     {
+        public static ServiceProvider StartKohaiServices(this ServiceProvider provider)
+        {
+            foreach (var service in provider.GetServices<IService>())
+                service?.ServiceStarted();
+
+            return provider;
+        }
+
         public static ServiceCollection AddKohaiServices(this ServiceCollection services)
         {
             // add all service types to service registry, so forms/etc can easily use them via constructors
@@ -25,7 +33,8 @@ namespace Kohai
 
                     try
                     {
-                        services.AddSingleton(type);
+                        services.AddSingleton(typeof(IService), type);
+                        services.AddSingleton(type, type);
                     }
                     catch (Exception exc)
                     {

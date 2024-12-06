@@ -13,6 +13,8 @@ namespace Kohai.Services
     public abstract class ServiceBase<TConfig> : IService<TConfig>
         where TConfig : class, new()
     {
+        protected CancellationTokenSource shutdownTokenSource;
+
         private TConfig? _serviceConfiguration = null;
         public TConfig ServiceConfiguration
         {
@@ -30,6 +32,15 @@ namespace Kohai.Services
             }
         }
 
-        public abstract bool ServiceRunning { get; }
+        public virtual bool ServiceRunning => shutdownTokenSource.IsCancellationRequested;
+
+        protected ServiceBase(CancellationTokenSource shutdownTokenSource)
+        {
+            this.shutdownTokenSource = shutdownTokenSource;
+            this.shutdownTokenSource.Token.Register(async () => await ServiceStopped());
+        }
+
+        public virtual async Task ServiceStarted() { await Task.CompletedTask; }
+        public virtual async Task ServiceStopped() { await Task.CompletedTask; }
     }
 }
